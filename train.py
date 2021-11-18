@@ -3,7 +3,6 @@
 import argparse
 from pathlib import Path
 import os
-from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader
@@ -188,10 +187,10 @@ parser = train_config(parser)
 args = parser.parse_args()
 
 # some stuff in data can be automated
-experiment = args.dataset_name
-args.data_dir = f'experiments/{experiment}/bert-base-multilingual-cased'
-args.task_def = f'experiments/{experiment}/task_def.yaml'
-args.train_datasets = experiment.lower()
+dataset_name = args.dataset_name
+args.data_dir = f'experiments/{dataset_name}/bert-base-multilingual-cased'
+args.task_def = f'experiments/{dataset_name}/task_def.yaml'
+args.train_datasets = dataset_name.lower()
 
 # set task name, root data dir, and output dir.
 output_dir = args.output_dir
@@ -220,7 +219,7 @@ if not args.head_probe:
     output_dir = Path(output_dir).joinpath(exp_name)
 else:
     setting = args.model_ckpt.split("/")[-2]
-    output_dir = Path(output_dir).joinpath(exp_name, setting)
+    output_dir = Path(output_dir).joinpath(dataset_name, setting)
 
 output_dir.mkdir(exist_ok=True, parents=True)
 output_dir = os.path.abspath(output_dir)
