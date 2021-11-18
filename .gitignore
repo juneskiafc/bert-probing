@@ -1,0 +1,16 @@
+checkpoint/
+__pycache__/
+.cache/
+logs/
+wandb/
+experiments/
+!experiments/**.py
+.DS_Store
+score_outputs/*.csv
+score_outputs/*.zip
+*.pdf
+*.npy
+*.png
+*.pt
+*.bin
+
