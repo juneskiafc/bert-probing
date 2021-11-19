@@ -3,8 +3,15 @@ __pycache__/
 .cache/
 logs/
 wandb/
-experiments/**
-!experiments/**/*.py
+
+experiments/**/*.tsv
+experiments/**/*.csv
+experiments/**/bert-base-multilingual-cased
+experiments/**/*.json
+experiments/**/*.txt
+experiments/**/*.conllu
+experiments/**/*.jsonl
+
 .DS_Store
 score_outputs/*.csv
 score_outputs/*.zip
