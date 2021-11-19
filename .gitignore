@@ -3,7 +3,7 @@ __pycache__/
 .cache/
 logs/
 wandb/
-experiments/
+experiments/*
 !experiments/*.py
 .DS_Store
 score_outputs/*.csv
