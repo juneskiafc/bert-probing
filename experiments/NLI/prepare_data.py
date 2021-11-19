@@ -1,4 +1,3 @@
-from collections import defaultdict
 import csv
 import jsonlines
 import sys
@@ -28,11 +27,12 @@ def raw_tsv_to_mtdnn_format(in_files, out_file, language=None, excl_langs=None):
         for in_file in in_files:
             with jsonlines.open(in_file) as fr:
                 for row in fr:
-                    if (language is None or 'language' not in row) or \
-                        (excl_langs is None or 
-                        (row['language'] == language and language not in excl_langs) and \
-                        row['language'] not in excl_langs):
-                            rowid = row['pairID']
+                    # check language specific request
+                    c1 = (language is None) or (language is not None and row['language'] == language)
+                    # then check excl_lang request
+                    c2 = (excl_langs is None) or (excl_langs is not None and row['language'] not in excl_langs)
+                    
+                    if c1 and c2:
                             label = row['gold_label']
                             premise = row['sentence1']
                             hypo = row['sentence2']
@@ -86,6 +86,9 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
             out_file = DATA_PATH.joinpath(f'multi-{language}/multi-{language}_{split}.tsv')
         
         out_file.parent.mkdir(exist_ok=True)
+        # if out_file.is_file():
+        #     print(f'dataset for {language} exists.')
+        #     continue
 
         if split == 'train':
             if not exclude_english:
@@ -95,11 +98,10 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
         elif split == 'test':
             datasets = [XNLI_TEST]
 
-        if exclude_english:
+        if exclude_english and language != 'en':
             raw_tsv_to_mtdnn_format(datasets, out_file, language=language, excl_langs=['en'])
         else:
             raw_tsv_to_mtdnn_format(datasets, out_file, language=language)
 
 if __name__ == '__main__':
-    make_main_data()
-    # make_per_language_multilingual_data(True, 'test')
+    make_per_language_multilingual_data(True, 'test')
