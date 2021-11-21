@@ -25,3 +25,4 @@ conllu
 wandb
 networkx
 jsonlines
+mosestokenizer

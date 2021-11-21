@@ -1,12 +1,7 @@
-from collections import OrderedDict
-from gluonnlp import vocab
-from mxnet.gluon import data
 import pandas as pd
 from mlm.scorers import MLMScorerPT
-from torch import nn
 from mlm.models import get_pretrained
 from transformers import AutoTokenizer
-from mlm.loaders import Corpus
 import mxnet as mx
 from transformers import BertForMaskedLM
 from pathlib import Path
@@ -19,7 +14,7 @@ import json
 import numpy as np
 from typing import List, Tuple
 from math import exp
-import tasks
+from matplotlib import pyplot as plt 
 from experiments.exp_def import TaskDefs
 import seaborn as sns
 from time import time
@@ -92,9 +87,9 @@ def construct_dataset(data_file, path_to_task_def, prefix, tokenizer):
 
 def mlm_score(model_name, ckpt_file, data_file, path_to_task_def, prefix, scores_out_file, n_words, device_id, load_huggingface=True):
     if Path(scores_out_file).is_file():
+        print(f'{scores_out_file} exists.')
         with open(scores_out_file, 'rb') as f:
             scores = pickle.load(f)
-        # vocab_size = 119547 # bert base multilingual cased
 
         if n_words is None:
             _, _, tokenizer = get_pretrained([mx.gpu(device_id)], 'bert-base-multilingual-cased')
@@ -102,7 +97,7 @@ def mlm_score(model_name, ckpt_file, data_file, path_to_task_def, prefix, scores
             n_words = get_true_tok_lens_from_dataset(dataset)
     else:
         # data file is json.
-        ctxs = [mx.gpu(device_id)] # or, e.g., [mx.gpu(0), mx.gpu(1)]
+        ctxs = [mx.gpu(device_id)]
 
         tokenizer = AutoTokenizer.from_pretrained('bert-base-multilingual-cased')
         vocab = tokenizer.vocab
@@ -168,28 +163,28 @@ def mlm_score(model_name, ckpt_file, data_file, path_to_task_def, prefix, scores
 if __name__ == '__main__':
     # corpuses to compute PPPLs for.
     datasets = [
-        'multi-ar',
-        'multi-bg',
-        'multi-de',
-        'multi-el',
-        'multi-es',
-        'multi-fr',
-        'multi-hi',
-        'multi-ru',
-        'multi-sw',
-        'multi-th',
-        'multi-tr',
-        'multi-ur',
-        'multi-vi',
-        'multi-zh',
-        'multi-en'
+        'ar',
+        'bg',
+        'de',
+        'el',
+        'es',
+        'fr',
+        'hi',
+        'ru',
+        'sw',
+        'th',
+        'tr',
+        'ur',
+        'vi',
+        'zh',
+        'en'
     ]
 
     # settings under which BERT was trained to evaluate PPPL for each corpus.
     settings = [
         'cross',
-        # 'multi',
-        # 'base',
+        'multi',
+        'base',
     ]
 
     results = np.zeros((len(datasets), len(settings)))
@@ -204,14 +199,17 @@ if __name__ == '__main__':
     else:
         new_n_words = {}
         if true_tok_lens_saved_file.is_file():
-            true_tok_lens_saved = pd.read_csv(true_tok_lens_saved_file).to_dict()
+            true_tok_lens_saved = pd.read_csv(true_tok_lens_saved_file, index_col=0).to_dict()
             saved_n_words = len(true_tok_lens_saved.keys())
         else:
             true_tok_lens_saved = None
             saved_n_words = 0
         
         for i, dataset in enumerate(datasets):
-            language = dataset.split("-")[1]
+            if "-" in dataset:
+                language = dataset.split("-")[1]
+            else:
+                language = dataset
             data_file = data_root.joinpath(f'{language}/{base_model_name}/{language}_test.json')
 
             for j, setting in enumerate(settings):
@@ -243,7 +241,8 @@ if __name__ == '__main__':
                     prefix,
                     scores_out_file,
                     n_words,
-                    device_id=2)
+                    device_id=2,
+                    load_huggingface=True)
                 end = time() - start
 
                 results[i, j] = pppl
@@ -253,7 +252,7 @@ if __name__ == '__main__':
 
         if len(new_n_words.keys()) > 0:
             if true_tok_lens_saved is not None:
-                true_tok_lens_saved = {**true_tok_lens_saved, **new_n_words}
+                true_tok_lens_saved = true_tok_lens_saved.update(new_n_words)
             else:
                 true_tok_lens_saved = new_n_words
             
@@ -263,9 +262,27 @@ if __name__ == '__main__':
         
         np.save(mlm_scores_out_file, results)
     
-    heatmap = sns.heatmap(results, cmap='RdYlGn_r', xticklabels=settings, yticklabels=datasets, annot=True, fmt='.1f')
-    heatmap.set_title('PPPL scores')
+    fontsize = 20
+    plt.figure(figsize=(14, 14))
+    annot_kws = {
+        "fontsize":fontsize,
+    }
+
+    heatmap = sns.heatmap(
+        results,
+        cmap='RdYlGn_r',
+        cbar=False,
+        annot_kws=annot_kws,
+        annot=True,
+        fmt='.2f')
+    
+    heatmap.set_xticklabels(settings, rotation=0, fontsize=fontsize)
+    heatmap.set_yticklabels([d.upper() for d in datasets], rotation=0, fontsize=fontsize)
+    heatmap.set_xlabel('model', fontsize=fontsize)
+    heatmap.set_ylabel('language', fontsize=fontsize)
+
     heatmap.xaxis.tick_top()
     heatmap.xaxis.set_label_position('top')
+
     fig = heatmap.get_figure()
     fig.savefig(mlm_scores_out_file.with_suffix('.png'))
