@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 from conllu import parse_incr
 import numpy as np
+from datasets import Dataset, load_dataset
 
 FONTSIZE = 25
 
@@ -40,6 +41,21 @@ def save_heatmap(data, out_file):
 def get_lang_to_id(task):
     if task == 'POS':
         return get_lang_to_id_pos()
+    elif task == 'NER':
+        return get_lang_to_id_ner()
+    elif task == 'PAWSX':
+        return get_lang_to_id_pawsx()
+
+def get_lang_to_id_pawsx():
+    lang_to_id = defaultdict(list)
+
+    i = 0
+    for lang in ['en', 'fr', 'de', 'es']:
+        dataset = load_dataset('paws-x', lang, split='test')
+        lang_to_id[lang] = list(range(i, i + len(dataset)))
+        i += len(dataset)
+    
+    return lang_to_id
 
 def get_lang_to_id_pos():
     data_root = Path('/home/june/mt-dnn/experiments/POS/data')
@@ -64,19 +80,30 @@ def get_lang_to_id_pos():
     
     return lang_to_id
 
+def get_lang_to_id_ner():
+    root = 'experiments/NER/ner_test_tmp.json'
+    df = Dataset.from_json(root)
+    lang_to_id = defaultdict(list)
+
+    for i, row in enumerate(df):
+        lang = row['langs'][0]
+        lang_to_id[lang].append(i)
+    
+    return lang_to_id
+
 def get_final_probing_result(task, languages):
     for lang in languages:
-        cross = pd.read_csv(f'score_outputs/{task}/head_probe/cross/xnli_cross-pos-{lang}-pure.csv', index_col=0)
-        multi = pd.read_csv(f'score_outputs/{task}/head_probe/multi/xnli_multi-pos-{lang}-pure.csv', index_col=0)
-        base = pd.read_csv(f'score_outputs/{task}/head_probe/base/xnli_base-pos-{lang}-pure.csv', index_col=0)
+        cross = pd.read_csv(f'score_outputs/{task}/head_probe/cross/xnli_cross-{task.lower()}-{lang}-pure.csv', index_col=0)
+        multi = pd.read_csv(f'score_outputs/{task}/head_probe/multi/xnli_multi-{task.lower()}-{lang}-pure.csv', index_col=0)
+        base = pd.read_csv(f'score_outputs/{task}/head_probe/base/xnli_base-{task.lower()}-{lang}-pure.csv', index_col=0)
 
         cross = cross - base
         multi = multi - base
 
-        cross.to_csv(f'score_outputs/{task}/head_probe/xnli_cross-pos-{lang}.csv')
-        multi.to_csv(f'score_outputs/{task}/head_probe/xnli_multi-pos-{lang}.csv')
-        save_heatmap(cross, f'score_outputs/{task}/head_probe/xnli_cross-pos-{lang}')
-        save_heatmap(multi, f'score_outputs/{task}/head_probe/xnli_multi-pos-{lang}')
+        cross.to_csv(f'score_outputs/{task}/head_probe/xnli_cross-{task.lower()}-{lang}.csv')
+        multi.to_csv(f'score_outputs/{task}/head_probe/xnli_multi-{task.lower()}-{lang}.csv')
+        save_heatmap(cross, f'score_outputs/{task}/head_probe/xnli_cross-{task.lower()}-{lang}')
+        save_heatmap(multi, f'score_outputs/{task}/head_probe/xnli_multi-{task.lower()}-{lang}')
 
 def get_lang_csvs(task, model, languages):
     root = f'score_outputs/{task}/head_probe/{model}/results.csv'
@@ -105,14 +132,11 @@ def get_lang_csvs(task, model, languages):
         out_df.to_csv(out_file)
     
 if __name__ == '__main__':
-    task = 'POS'
+    task = 'PAWSX'
     if task != 'NLI':
         languages = ['en', 'fr', 'es', 'de']
     
-    # for model in ['cross', 'multi', 'base']:
-    #     get_lang_csvs(task, 'cross', languages)
+    for model in ['cross', 'multi', 'base']:
+        get_lang_csvs(task, model, languages)
     
     get_final_probing_result(task, languages)
-    
-
-
