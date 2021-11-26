@@ -15,11 +15,16 @@ label_map = {
 label_map = {v:k for k,v in label_map.items()}
 
 # en fr de es
+split_to_langs = {
+    'train': ['en'],
+    'test': ['en', 'fr', 'de', 'es']
+}
+
 for split in ['train', 'test']:
     out_file = f'experiments/NER/ner_{split}_tmp.json'
     if not Path(out_file).is_file():
         datasets = []
-        for lang in ['en', 'fr', 'de', 'es']:
+        for lang in split_to_langs[split]:
             dataset = load_dataset('wikiann', lang, split=split)
             datasets.append(dataset)
 

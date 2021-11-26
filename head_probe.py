@@ -29,6 +29,10 @@ def probe_heads(setting, task, base=False, models_per_gpu=2):
         checkpoint_task = 'MARC'
         n_classes = 5
         train_dataset = 'marc'
+    elif task == "PAWSX":
+        checkpoint_task = 'PAWSX'
+        n_classes = 2
+        train_dataset = 'pawsx'
 
     task_def = task_root.joinpath('task_def.yaml')
     data_dir = task_root.joinpath('bert-base-multilingual-cased')
@@ -38,12 +42,20 @@ def probe_heads(setting, task, base=False, models_per_gpu=2):
     heads_to_probe = []
     for hl in range(12):
         for hi in range(12):
-            dir_for_head = checkpoint_dir.joinpath(shorthand_setting, f'{shorthand_setting}_{hl}/{shorthand_setting}_{hl}_{hi}')
+            if not base:
+                dir_for_head = checkpoint_dir.joinpath(setting, f'{shorthand_setting}_{hl}/{shorthand_setting}_{hl}_{hi}')
+            else:
+                dir_for_head = checkpoint_dir.joinpath('base', f'{shorthand_setting}_{hl}/{shorthand_setting}_{hl}_{hi}')
             if len(list(dir_for_head.rglob('*.pt'))) > 0:
                 continue
             else:
                 heads_to_probe.append((hl, hi))
 
+    print('heads to probe:')
+    for hp in heads_to_probe:
+        print(hp)
+    print("\n")
+    
     device_ids = []
     available_devices = [0, 1, 2, 3]
     for i, _ in enumerate(heads_to_probe):
@@ -91,7 +103,9 @@ def compress_saved_heads(task):
                 torch.save(hp_state_dict, ckpt_file)
 
 if __name__ == '__main__':
-    setting = 'cross'
-    task = 'MARC'
-    probe_heads(setting, task, base=False)
-    # compress_saved_heads(task)
+    task = 'PAWSX'
+    for setting in ['cross', 'multi', 'base']:
+        if setting != 'base':
+            probe_heads(setting, task, base=False)
+        else:
+            probe_heads('cross', task, base=True)
