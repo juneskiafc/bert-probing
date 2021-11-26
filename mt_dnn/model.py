@@ -17,7 +17,6 @@ from mt_dnn.matcher import SANBertNetwork
 from mt_dnn.perturbation import SmartPerturbation
 from mt_dnn.loss import *
 from experiments.exp_def import TaskDef
-import transformers
 
 
 logger = logging.getLogger(__name__)
