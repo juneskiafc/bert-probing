@@ -2,14 +2,16 @@ from pathlib import Path
 import pandas as pd
 from conllu import parse_incr
 
-DATA_ROOT = Path('/home/june/mt-dnn/experiments/pos/data')
+DATA_ROOT = Path('/home/june/mt-dnn/experiments/POS/data')
 
-dataset_dirs = [
-    DATA_ROOT.joinpath('en/UD_English-EWT'),
-    DATA_ROOT.joinpath('fr/UD_French-FTB'),
-    DATA_ROOT.joinpath('de/UD_German-GSD'),
-    DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
-]
+dataset_dirs = {
+    'train': [DATA_ROOT.joinpath('en/UD_English-EWT')],
+    'test': [
+        DATA_ROOT.joinpath('en/UD_English-EWT'),
+        DATA_ROOT.joinpath('fr/UD_French-FTB'),
+        DATA_ROOT.joinpath('de/UD_German-GSD'),
+        DATA_ROOT.joinpath('es/UD_Spanish-AnCora')]
+}
 
 def simplify_name():
     for data_dir in dataset_dirs[1:]:
@@ -27,9 +29,9 @@ id_ = 0
 for split in ['train', 'test']:
     out_file = DATA_ROOT.parent.joinpath(f'{task_name}_{split}.tsv')
     data = [[], []]
-
     print(f'making {split} data.')
-    for data_dir in dataset_dirs:
+
+    for data_dir in dataset_dirs[split]:
         print(f'\tprocessing {data_dir.name}')
         with open(data_dir.joinpath(f'{split}.conllu'), 'r', encoding='utf-8') as f:
             for i, tokenlist in enumerate(parse_incr(f)):
