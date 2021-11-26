@@ -1,13 +1,19 @@
 from datasets import load_dataset, concatenate_datasets, Dataset
-import pandas as pd
 from pathlib import Path
 
 # en fr de es
+
+langs_per_setting = {
+    'train': ['en'],
+    'test': ['en', 'fr', 'de', 'es']
+}
+
 for split in ['train', 'test']:
     out_file = f'experiments/PAWSX/pawsx_{split}_tmp.json'
     if not Path(out_file).is_file():
+        Path(out_file).parent.mkdir(exist_ok=True, parents=True)
         datasets = []
-        for lang in ['en', 'fr', 'de', 'es']:
+        for lang in langs_per_setting[split]:
             dataset = load_dataset('paws-x', lang, split=split)
             datasets.append(dataset)
 
