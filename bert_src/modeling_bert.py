@@ -27,7 +27,6 @@ import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 import einops
-import transformers
 
 from ...activations import ACT2FN
 from ...file_utils import (
@@ -237,16 +236,20 @@ class BertSelfAttention(nn.Module):
 
         self.is_decoder = config.is_decoder
         self.head_probe = False
+        self.head_probes = nn.ModuleDict()
     
-    def attach_head_probe(self, head_idx, n_classes=3, device_id=-1):
+    def attach_head_probe(self, head_layer, head_idx, n_classes):
         self.head_probe = True
-        self.head_probe_head_idx = head_idx
-        self.head_probe_dense_layer = nn.Linear(self.attention_head_size, n_classes).cuda(device=device_id)
+        self.head_layer = head_layer
+        self.head_probe_n_classes = n_classes
 
-    def detach_head_probe(self):
-        delattr(self, 'head_probe_dense_layer')
-        delattr(self, 'head_probe_head_idx')
-        self.head_probe = False
+        probe = nn.Linear(self.attention_head_size, n_classes).to('cuda')
+        self.head_probes.update({f'hp_{head_layer}_{head_idx}': probe})
+
+    # def detach_head_probe(self):
+    #     delattr(self, 'head_probe_dense_layer')
+    #     delattr(self, 'head_probe_head_idx')
+    #     self.head_probe = False
     
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -342,20 +345,28 @@ class BertSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
         
+        # let's pack these
         if self.head_probe:
+            batch_size = context_layer.shape[0]
+            head_probe_outputs = torch.zeros((batch_size, self.num_attention_heads, self.head_probe_n_classes)).type_as(context_layer)
             reshaped_context_layer = einops.rearrange(context_layer, 'b f (n h) -> b f n h', n=self.num_attention_heads)
-            head_probe_input = reshaped_context_layer[:, 0, self.head_probe_head_idx, :]
-            head_probe_output = self.head_probe_dense_layer(head_probe_input)
+
+            for head_idx in range(self.num_attention_heads):
+                head_probe_input = reshaped_context_layer[:, 0, head_idx, :]
+                head_probe_output = self.head_probes[f'hp_{self.head_layer}_{head_idx}'](head_probe_input)
+                head_probe_outputs[:, head_idx, :] = head_probe_output
 
         outputs = [context_layer]
+
         if output_attentions:
             outputs.append(attention_probs)
         if self.is_decoder:
             outputs = outputs.append(past_key_value)
         if self.head_probe:
-            outputs.append(head_probe_output)
-
-        return tuple(outputs), self.head_probe
+            outputs.append(head_probe_outputs)
+            # outputs.append(self.head_layer)
+        
+        return tuple(outputs) # (context_layer, (attention_probs), head_probe_outputs)
 
 
 class BertSelfOutput(nn.Module):
@@ -407,7 +418,7 @@ class BertAttention(nn.Module):
         past_key_value=None,
         output_attentions=False,
     ):
-        self_outputs, head_probe = self.self(
+        self_outputs = self.self(
             hidden_states,
             attention_mask,
             head_mask,
@@ -420,14 +431,12 @@ class BertAttention(nn.Module):
         attention_output = self.output(self_outputs[0], hidden_states)
         outputs = (attention_output,)
 
-        if len(self_outputs) == 3 or (len(self_outputs) == 2 and not head_probe):
-            outputs = outputs + self_outputs[1]  # add attentions if we output them
+        if len(self_outputs) == 3: # outputing attention weights too
+            outputs = outputs + (self_outputs[1],)
 
-        if head_probe:
-            outputs = outputs + (self_outputs[-1],) # add head probing result
+        outputs = outputs + (self_outputs[-1],) # add head probing result
 
-        return outputs, head_probe
-
+        return outputs
 
 class BertIntermediate(nn.Module):
     def __init__(self, config):
@@ -484,24 +493,27 @@ class BertLayer(nn.Module):
     ):
         # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
         self_attn_past_key_value = past_key_value[:2] if past_key_value is not None else None
-        self_attention_outputs, head_probe = self.attention(
+        self_attention_outputs = self.attention(
             hidden_states,
             attention_mask,
             head_mask,
             output_attentions=output_attentions,
             past_key_value=self_attn_past_key_value,
         )
+
+        assert len(self_attention_outputs) == 3 or len(self_attention_outputs) == 2
+
         attention_output = self_attention_outputs[0]
-        if head_probe:
-            head_probe_output = self_attention_outputs[-1]
-            self_attention_outputs = self_attention_outputs[:-1]
+        head_probe_output = self_attention_outputs[-1]
+
+        if len(self_attention_outputs) == 3:
+            attention_probs = self_attention_outputs[1]
 
         # if decoder, the last output is tuple of self-attn cache
         if self.is_decoder:
-            outputs = self_attention_outputs[1:-1]
-            present_key_value = self_attention_outputs[-1]
-        else:
-            outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
+            raise ValueError('decoder mode not supported.')
+            # outputs = self_attention_outputs[1:-1]
+            # present_key_value = self_attention_outputs[-1]
 
         cross_attn_present_key_value = None
         if self.is_decoder and encoder_hidden_states is not None:
@@ -528,18 +540,22 @@ class BertLayer(nn.Module):
             present_key_value = present_key_value + cross_attn_present_key_value
 
         layer_output = apply_chunking_to_forward(
-            self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
+            self.feed_forward_chunk,
+            self.chunk_size_feed_forward,
+            self.seq_len_dim,
+            attention_output
         )
-        outputs = (layer_output,) + outputs
+
+        outputs = (layer_output,)
+        if len(self_attention_outputs) == 3:
+            outputs = outputs + (attention_probs,)
+        outputs = outputs + (head_probe_output,)
 
         # if decoder, return the attn key/values as the last output
         if self.is_decoder:
             outputs = outputs + (present_key_value,)
 
-        if head_probe:
-            outputs = outputs + (head_probe_output,)
-
-        return outputs, head_probe
+        return outputs
 
     def feed_forward_chunk(self, attention_output):
         intermediate_output = self.intermediate(attention_output)
@@ -569,6 +585,7 @@ class BertEncoder(nn.Module):
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
         all_cross_attentions = () if output_attentions and self.config.add_cross_attention else None
+        all_head_probe_outputs = ()
 
         next_decoder_cache = () if use_cache else None
         head_probe_output = None
@@ -581,7 +598,6 @@ class BertEncoder(nn.Module):
             past_key_value = past_key_values[i] if past_key_values is not None else None
 
             if getattr(self.config, "gradient_checkpointing", False) and self.training:
-
                 if use_cache:
                     logger.warning(
                         "`use_cache=True` is incompatible with `config.gradient_checkpointing=True`. Setting "
@@ -604,7 +620,7 @@ class BertEncoder(nn.Module):
                     encoder_attention_mask,
                 )
             else:
-                layer_outputs, head_probe = layer_module(
+                all_layer_outputs = layer_module(
                     hidden_states,
                     attention_mask,
                     layer_head_mask,
@@ -614,17 +630,22 @@ class BertEncoder(nn.Module):
                     output_attentions,
                 )
 
-                if head_probe:
-                    head_probe_output = layer_outputs[-1]
-                    layer_outputs = layer_outputs[:-1]
+                head_probe_output = all_layer_outputs[-1]
+                all_head_probe_outputs = all_head_probe_outputs + (head_probe_output,)
+                # layer_outputs = layer_outputs[:-1]
 
-            hidden_states = layer_outputs[0]
+            hidden_states = all_layer_outputs[0]
             if use_cache:
                 next_decoder_cache += (layer_outputs[-1],)
             if output_attentions:
-                all_self_attentions = all_self_attentions + (layer_outputs[1],)
-                if self.config.add_cross_attention:
-                    all_cross_attentions = all_cross_attentions + (layer_outputs[2],)
+                assert len(all_layer_outputs) == 3
+                assert not self.config.add_cross_attention
+                
+                attention_outputs_for_layer = all_layer_outputs[1]
+                all_self_attentions = all_self_attentions + (attention_outputs_for_layer,)
+
+                # if self.config.add_cross_attention:
+                #     all_cross_attentions = all_cross_attentions + (layer_outputs[2],)
 
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
@@ -642,13 +663,14 @@ class BertEncoder(nn.Module):
                 ]
                 if v is not None
             )
+        
         return BaseModelOutputWithPastAndCrossAttentions(
             last_hidden_state=hidden_states,
             past_key_values=next_decoder_cache,
             hidden_states=all_hidden_states,
             attentions=all_self_attentions,
             cross_attentions=all_cross_attentions,
-            head_probe_output=head_probe_output
+            head_probe_output=all_head_probe_outputs
         )
 
 
