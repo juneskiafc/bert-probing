@@ -160,6 +160,11 @@ def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
     else:
         raise ValueError(data_format)
 
+def route_by_dataset(args):
+    if args.dataset == 'POS':
+        pos_main(args)
+    else:
+        raise NotImplementedError
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -169,6 +174,8 @@ def parse_args():
     parser.add_argument('--do_lower_case', action='store_true')
     parser.add_argument('--do_padding', action='store_true')
     parser.add_argument('--root_dir', type=str, default='data/canonical_data')
+    parser.add_argument('--head_probe', action='store_true')
+    parser.add_argument('--dataset', type=str)
 
     args = parser.parse_args()
     return args
@@ -193,16 +200,25 @@ def build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer):
                 lab_dict=task_def.label_vocab)
 
 def pos_main(args):
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
-    root = '/home/june/mt-dnn/experiments/pos/'
-    task_def = root + 'task_def.yaml'
+    def _pos_prepare_data(root):
+        task_def = os.path.join(root, 'task_def.yaml')
 
-    mt_dnn_root = os.path.join(root, args.model)
-    if not os.path.isdir(mt_dnn_root):
-        os.makedirs(mt_dnn_root)
+        mt_dnn_root = os.path.join(root, args.model)
+        if not os.path.isdir(mt_dnn_root):
+            os.makedirs(mt_dnn_root)
+        
+        task_defs = TaskDefs(task_def)
+        build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)
     
-    task_defs = TaskDefs(task_def)
-    build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    if args.head_probe:
+        root = f'/home/june/mt-dnn/experiments/POS/head_probe'
+        _pos_prepare_data(root)
+    
+    else:
+        for setting in ['cross', 'multi']:
+            root = f'/home/june/mt-dnn/experiments/POS/{setting}'
+            _pos_prepare_data(root)
 
 def nli_main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model)
@@ -260,4 +276,4 @@ def pawsx_main(args):
 
 if __name__ == '__main__':
     args = parse_args()
-    pawsx_main(args)
+    route_by_dataset(args)

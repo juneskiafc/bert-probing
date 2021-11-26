@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 
 import torch
-from torch.utils.data import DataLoader, dataset
+from torch.utils.data import DataLoader
 from pretrained_models import *
 
 from experiments.exp_def import TaskDefs
@@ -61,6 +61,7 @@ def model_config(parser):
 
     # BERT pre-training
     parser.add_argument('--bert_model_type', type=str, default='bert-base-multilingual-cased')
+    parser.add_argument('--init_checkpoint', type=str, default='bert-base-multilingual-cased')
     parser.add_argument('--do_lower_case', action='store_true')
     parser.add_argument('--masked_lm_prob', type=float, default=0.15)
     parser.add_argument('--short_seq_prob', type=float, default=0.2)
@@ -99,14 +100,7 @@ def data_config(parser):
     parser.add_argument('--dataset_name', default='', help='dataset name') # THIS
     parser.add_argument('--log_file', default='mt-dnn.log', help='path for log file.')
     parser.add_argument('--wandb', action='store_true') # THIS
-    parser.add_argument("--init_checkpoint", default='bert-base-multilingual-cased', type=str)
-    parser.add_argument('--data_dir', default='data/canonical_data/bert_uncased_lower') # THIS
     parser.add_argument('--data_sort_on', action='store_true')
-    parser.add_argument('--name', default='farmer')
-    parser.add_argument('--task_def', type=str, default="experiments/glue/glue_task_def.yml") # THIS
-    parser.add_argument('--train_datasets', default='mnli') # THIS
-    parser.add_argument('--test_datasets', default='mnli_matched,mnli_mismatched')
-    parser.add_argument('--glue_format_on', action='store_true')
     parser.add_argument('--mkd-opt', type=int, default=0, 
                         help=">0 to turn on knowledge distillation, requires 'softlabel' column in input data")
     parser.add_argument('--do_padding', action='store_true')
@@ -191,7 +185,7 @@ dataset_name = args.dataset_name
 args.data_dir = f'experiments/{dataset_name}/bert-base-multilingual-cased'
 args.task_def = f'experiments/{dataset_name}/task_def.yaml'
 if "/" in dataset_name:
-    args.train_datasets = dataset_name.split("/")[1]
+    args.train_datasets = dataset_name.split("/")[0].lower()
 else:
     args.train_datasets = dataset_name.lower()
 
@@ -201,7 +195,6 @@ data_dir = args.data_dir
 
 # multiple datasets are split by ','
 args.train_datasets = args.train_datasets.split(',')
-args.test_datasets = args.test_datasets.split(',')
 
 # seed everything.
 set_environment(args.seed, args.cuda)

@@ -3,11 +3,16 @@ import pandas as pd
 from pathlib import Path
 
 # en fr de es
+split_to_langs = {
+    'train': ['en'],
+    'test': ['en', 'fr', 'de', 'es']
+}
+
 for split in ['train', 'test']:
     out_file = f'experiments/MARC/marc_{split}_tmp.json'
     if not Path(out_file).is_file():
         datasets = []
-        for lang in ['en', 'fr', 'de', 'es']:
+        for lang in split_to_langs[split]:
             dataset = load_dataset('amazon_reviews_multi', lang, split=split)
             datasets.append(dataset)
 
@@ -22,8 +27,3 @@ for split in ['train', 'test']:
             premise = row['review_body']
             label = row['stars']
             f.write(f'{i}\t{label}\t{premise}\n')
-
-
-
-
-
