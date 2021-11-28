@@ -8,6 +8,7 @@ import pandas as pd
 from conllu import parse_incr
 import numpy as np
 from datasets import Dataset, load_dataset
+from argparse import ArgumentParser
 
 FONTSIZE = 25
 
@@ -91,34 +92,52 @@ def get_lang_to_id_ner():
     
     return lang_to_id
 
-def get_final_probing_result(task, languages):
-    for lang in languages:
-        cross = pd.read_csv(f'score_outputs/{task}/head_probe/cross/xnli_cross-{task.lower()}-{lang}-pure.csv', index_col=0)
-        multi = pd.read_csv(f'score_outputs/{task}/head_probe/multi/xnli_multi-{task.lower()}-{lang}-pure.csv', index_col=0)
-        base = pd.read_csv(f'score_outputs/{task}/head_probe/base/xnli_base-{task.lower()}-{lang}-pure.csv', index_col=0)
+def get_final_probing_result(task, languages, do_individual=True, do_combined=True):
+    def _get_individual_probing_result(setting, combined=False, lang=None):
+        assert combined or (not combined and lang is not None)
 
-        cross = cross - base
-        multi = multi - base
+        # read base.
+        base_root = f'score_outputs/{task}/head_probe/base/xnli_base-{task.lower()}'
+        setting_root = f'score_outputs/{task}/head_probe/{setting}/xnli_{setting}-{task.lower()}'
+        out_file_root = f'score_outputs/{task}/head_probe/results/xnli_{setting}-{task.lower()}'
 
-        cross.to_csv(f'score_outputs/{task}/head_probe/xnli_cross-{task.lower()}-{lang}.csv')
-        multi.to_csv(f'score_outputs/{task}/head_probe/xnli_multi-{task.lower()}-{lang}.csv')
-        save_heatmap(cross, f'score_outputs/{task}/head_probe/xnli_cross-{task.lower()}-{lang}')
-        save_heatmap(multi, f'score_outputs/{task}/head_probe/xnli_multi-{task.lower()}-{lang}')
+        if not combined:
+            base_root += f'-{lang}-pure'
+            setting_root += f'-{lang}-pure'
+            out_file_root += f'-{lang}'
+        else:
+            base_root += '-combined'
+            setting_root += f'-combined'
+            out_file_root += f'-combined'
+        
+        out_file_root = Path(out_file_root)
+        base_root = Path(base_root)
+        setting_root = Path(setting_root)
 
-def get_lang_csvs(task, model, languages):
-    root = f'score_outputs/{task}/head_probe/{model}/results.csv'
+        if out_file_root.with_suffix('.pdf').is_file() and out_file_root.with_suffix('.csv').is_file():
+            return 
+        else:
+            out_file_root.parent.mkdir(parents=True, exist_ok=True)
 
-    data = pd.read_csv(root, index_col=0)
-    language_to_ids = get_lang_to_id(task)
+            base_df = pd.read_csv(base_root.with_suffix('.csv'), index_col=0)
+            setting_df = pd.read_csv(setting_root.with_suffix('.csv'), index_col=0)
 
-    # load up language_to_ids.
-    for lang in languages:
-        ids = language_to_ids[lang]
-        data_for_lang = data.iloc[ids, :]
+            diff = setting_df - base_df
+            diff.to_csv(out_file_root.with_suffix('.csv'))
+            save_heatmap(diff, out_file_root)
 
-        # compute acc
-        labels = data_for_lang.iloc[:, 1]
-        preds = data_for_lang.iloc[:, 2:]
+    if do_individual:
+        for lang in languages:
+            for setting in ['cross', 'multi']:
+                _get_individual_probing_result(setting, combined=False, lang=lang)
+    
+    if do_combined:
+        for setting in ['cross', 'multi']:
+            _get_individual_probing_result(setting, combined=True)
+    
+
+def get_lang_csvs(task, model, languages, do_individual=True, do_combined=True):
+    def _get_acc_for_heads(labels, preds):
         results = np.zeros((12, 12))
         
         for hl in range(12):
@@ -127,16 +146,53 @@ def get_lang_csvs(task, model, languages):
                 acc = accuracy_score(labels, preds_for_head)
                 results[hl, hi] = acc
         
-        out_file = f'score_outputs/{task}/head_probe/{model}/xnli_{model}-{task.lower()}-{lang}-pure.csv'
-        out_df = pd.DataFrame(results)
-        out_df.to_csv(out_file)
+        return results
+    
+    root = f'score_outputs/{task}/head_probe/{model}/results.csv'
+    data = pd.read_csv(root, index_col=0)
+    
+    if do_individual:
+        language_to_ids = get_lang_to_id(task)
+
+        # individual languages
+        for lang in languages:
+            out_file = f'score_outputs/{task}/head_probe/{model}/xnli_{model}-{task.lower()}-{lang}-pure.csv'
+            if Path(out_file).is_file():
+                continue
+                
+            ids = language_to_ids[lang]
+            data_for_lang = data.iloc[ids, :]
+
+            # compute acc
+            labels = data_for_lang.iloc[:, 1]
+            preds = data_for_lang.iloc[:, 2:]
+
+            results = _get_acc_for_heads(labels, preds)
+            
+            out_df = pd.DataFrame(results)
+            out_df.to_csv(out_file)
+    
+    # combined
+    if do_combined:
+        combined_out_file = f'score_outputs/{task}/head_probe/{model}/xnli_{model}-{task.lower()}-combined.csv'
+        if not Path(combined_out_file).is_file():
+            combined_labels = data.iloc[:, 1]
+            combined_preds = data.iloc[:, 2:]
+
+            combined_results = _get_acc_for_heads(combined_labels, combined_preds)
+            out_df = pd.DataFrame(combined_results)
+            out_df.to_csv(combined_out_file)
     
 if __name__ == '__main__':
-    task = 'PAWSX'
+    parser = ArgumentParser()
+    parser.add_argument('--task', type=str)
+    args = parser.parse_args()
+    
+    task = args.task
     if task != 'NLI':
         languages = ['en', 'fr', 'es', 'de']
     
     for model in ['cross', 'multi', 'base']:
-        get_lang_csvs(task, model, languages)
+        get_lang_csvs(task, model, languages, do_individual=False)
     
-    get_final_probing_result(task, languages)
+    get_final_probing_result(task, languages, do_individual=False, do_combined=True)
