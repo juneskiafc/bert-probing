@@ -82,6 +82,9 @@ def model_config(parser):
 
     # head probing
     parser.add_argument('--head_probe', action='store_true')
+    parser.add_argument('--head_probe_layer', type=int)
+    parser.add_argument('--head_probe_idx', type=int)
+    parser.add_argument('--head_probe_n_classes', type=int)
 
     # kqv probing
     parser.add_argument('--kqv_probing', action='store_true')
@@ -308,6 +311,7 @@ def main():
     opt['head_probe'] = args.head_probe
     opt.update(config)
 
+    # if resuming, load state dict, and get init epoch and step.
     if args.resume:
         assert args.model_ckpt != '' and Path(args.model_ckpt).is_file()
         print_message(logger, f'loading model from {args.model_ckpt}')
@@ -361,19 +365,6 @@ def main():
 
         return
     
-    if args.head_probe:
-        print_message(logger, f'probing heads.')
-
-        # freeze all params except the heads
-        for n, p in model.network.named_parameters():
-            if 'head_probes.hp' in n:
-                p.requires_grad = True
-            else:
-                p.requires_grad = False
-    
-        init_epoch_idx = 0
-        init_global_step = 0
-
     if args.mlm_finetune:
         # freeze bert parameters
         for p in model.network.parameters():
@@ -384,6 +375,25 @@ def main():
         for p in model.network.mask_lm_header.parameters():
             p.requires_grad = True
 
+        init_epoch_idx = 0
+        init_global_step = 0
+
+    if args.head_probe:
+        print_message(logger, f'attached head probe at layer #{args.head_probe_layer+1}, head #{args.head_probe_idx+1}')
+
+        opt['head_probe'] = True
+        opt['head_idx_to_probe'] = (args.head_probe_layer, args.head_probe_idx)
+
+        # freeze all params
+        for p in model.network.parameters():
+            p.requires_grad = False
+        
+        # then attach probing head
+        model.attach_head_probe(
+            args.head_probe_layer,
+            args.head_probe_idx,
+            n_classes=args.head_probe_n_classes)
+    
         init_epoch_idx = 0
         init_global_step = 0
     
