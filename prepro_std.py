@@ -161,7 +161,14 @@ def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
         raise ValueError(data_format)
 
 def route_by_dataset(args):
+<<<<<<< HEAD
     prepare_data(args, args.dataset)
+=======
+    if args.dataset == 'POS':
+        pos_main(args)
+    else:
+        raise NotImplementedError
+>>>>>>> f18cf1b5d82862452f86f02f278673d80d36cca4
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -196,8 +203,13 @@ def build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer):
                 task_def.data_type,
                 lab_dict=task_def.label_vocab)
 
+<<<<<<< HEAD
 def prepare_data(args, task_name):
     def _build_huggingface_data_from_root(root):
+=======
+def pos_main(args):
+    def _pos_prepare_data(root):
+>>>>>>> f18cf1b5d82862452f86f02f278673d80d36cca4
         task_def = os.path.join(root, 'task_def.yaml')
 
         mt_dnn_root = os.path.join(root, args.model)
@@ -206,6 +218,7 @@ def prepare_data(args, task_name):
         
         task_defs = TaskDefs(task_def)
         build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)
+<<<<<<< HEAD
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     if args.head_probe:
@@ -216,6 +229,72 @@ def prepare_data(args, task_name):
         for setting in ['cross', 'multi']:
             root = f'/home/june/mt-dnn/experiments/{task_name}/{setting}'
             _build_huggingface_data_from_root(root)
+=======
+    
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    if args.head_probe:
+        root = f'/home/june/mt-dnn/experiments/POS/head_probe'
+        _pos_prepare_data(root)
+    
+    else:
+        for setting in ['cross', 'multi']:
+            root = f'/home/june/mt-dnn/experiments/POS/{setting}'
+            _pos_prepare_data(root)
+
+def nli_main(args):
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+
+    # 'ar', 'bg', 'de', 'el', 'en', 'es', 'fr', 'hi', 'ru', 'sw', 'th', 'tr', 'ur', 'vi', 'zh'
+    datasets = ['ltr']
+    rootr = '/home/june/mt-dnn/experiments/attention-probing/'
+
+    for dataset in datasets:
+        root = rootr + f'multi-{dataset}'
+        task_def = root + '/task_def.yaml'
+
+        mt_dnn_root = os.path.join(root, args.model)
+        if not os.path.isdir(mt_dnn_root):
+            os.makedirs(mt_dnn_root)
+
+        task_defs = TaskDefs(task_def)
+        build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)  
+
+def ner_main(args):
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    root = 'experiments/NER/'
+    task_def = root + 'task_def.yaml'
+
+    mt_dnn_root = os.path.join(root, args.model)
+    if not os.path.isdir(mt_dnn_root):
+        os.makedirs(mt_dnn_root)
+
+    task_defs = TaskDefs(task_def)
+    build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)
+
+def marc_main(args):
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    root = 'experiments/MARC/'
+    task_def = root + 'task_def.yaml'
+
+    mt_dnn_root = os.path.join(root, args.model)
+    if not os.path.isdir(mt_dnn_root):
+        os.makedirs(mt_dnn_root)
+
+    task_defs = TaskDefs(task_def)
+    build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)
+
+def pawsx_main(args):
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    root = 'experiments/PAWSX/'
+    task_def = root + 'task_def.yaml'
+
+    mt_dnn_root = os.path.join(root, args.model)
+    if not os.path.isdir(mt_dnn_root):
+        os.makedirs(mt_dnn_root)
+
+    task_defs = TaskDefs(task_def)
+    build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)
+>>>>>>> f18cf1b5d82862452f86f02f278673d80d36cca4
 
 if __name__ == '__main__':
     args = parse_args()
