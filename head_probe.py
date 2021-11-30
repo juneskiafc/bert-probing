@@ -64,8 +64,6 @@ def probe_heads(setting: LingualSetting,
         template += f"--epochs 2 --output_dir {checkpoint_dir_for_head} "
         template += f"--init_checkpoint bert-base-multilingual-cased --devices {did} "
         template += f'--head_probe --head_probe_layer {hl} --head_probe_idx {hi} --head_probe_n_classes {n_classes}'
-
-        raise ValueError(template)
     
         process = subprocess.Popen(template, shell=True, stdout=None)
         processes.append(process)

@@ -1,10 +1,7 @@
 # coding=utf-8
 # Copyright (c) Microsoft. All rights reserved.
 from typing import List
-import copy
-import sys
 import torch
-from torch.serialization import load
 import tasks
 import logging
 import numpy as np
@@ -17,9 +14,8 @@ from pytorch_pretrained_bert import BertAdam as Adam
 from module.bert_optim import Adamax, RAdam
 from mt_dnn.loss import LOSS_REGISTRY
 from mt_dnn.matcher import SANBertNetwork
-from mt_dnn.perturbation import SmartPerturbation
 from mt_dnn.loss import *
-from data_utils.task_def import TaskType, EncoderModelType
+from data_utils.task_def import TaskType
 from experiments.exp_def import TaskDef
 from data_utils.my_statics import DUMPY_STRING_FOR_EMPTY_ANS
 
@@ -28,43 +24,42 @@ logger = logging.getLogger(__name__)
 
 
 class MTDNNModel(object):
-    def __init__(self, opt, device=None, state_dict=None, num_train_step=-1, head_probe=False):
+    def __init__(self, opt, devices=None, state_dict=None, num_train_step=-1):
         self.config = opt
+        self.devices = devices
+
+        # global step
         self.updates = state_dict['updates'] if state_dict and 'updates' in state_dict else 0
         self.local_updates = 0
-        self.device = device
-        self.train_loss = AverageMeter()
-        self.adv_loss = AverageMeter()
-        self.emb_val =  AverageMeter()
-        self.eff_perturb = AverageMeter()
-        self.initial_from_local = True if state_dict else False
-        model = SANBertNetwork(opt, initial_from_local=self.initial_from_local)
-        self.total_param = sum([p.nelement() for p in model.parameters() if p.requires_grad])
-        
+
+        # create blank slate BERT
+        model = SANBertNetwork(opt)
         self.network = model
         if state_dict:
             self.load_state_dict(state_dict)
-        
-        if opt['cuda']:
-            model = model.to(self.device)
 
+        # setup optimizer
         optimizer_parameters = self._get_param_groups()
         self._setup_optim(optimizer_parameters, state_dict, num_train_step)
-        self.optimizer.zero_grad()
 
-        if self.config['local_rank'] != -1:
-            self.mnetwork = torch.nn.parallel.DistributedDataParallel(self.network, device_ids=[self.config["local_rank"]], output_device=self.config["local_rank"], find_unused_parameters=True)
-        elif self.config['multi_gpu_on']:
-            self.mnetwork = nn.DataParallel(self.network)
+        # multi GPU, single, or CPU
+        if devices is not None:
+            self.device = devices[0]
+        
+        if self.config['multi_gpu_on']:
+            self.mnetwork = nn.DataParallel(self.network, devices=devices)
         else:
+            if devices is not None:
+                self.network.to(devices[0])
             self.mnetwork = self.network
+        
         self._setup_lossmap(self.config)
-        self._setup_kd_lossmap(self.config)
-        self._setup_adv_lossmap(self.config)
-        self._setup_adv_training(self.config)
         self._setup_tokenizer()
 
-        self.head_probe = head_probe
+        # stats and misc
+        self.total_param = sum([p.nelement() for p in model.parameters() if p.requires_grad])
+        self.train_loss = AverageMeter()
+        self.head_probe = opt['head_probe']
 
     def load_state_dict(self, state_dict):
         self.network.load_state_dict(state_dict['state'], strict=True)
@@ -73,25 +68,10 @@ class MTDNNModel(object):
         return self.network.get_attention_layer(hl)
     
     def attach_head_probe(self, hl, hi, n_classes):
-        self.network.attach_head_probe(hl, hi, n_classes=n_classes, device_id=self.device)
+        self.network.attach_head_probe(hl, hi, n_classes, self.device)
 
     def detach_head_probe(self, hl):
         self.network.detach_head_probe(hl)
-
-    def _setup_adv_training(self, config):
-        self.adv_teacher = None
-        if config.get('adv_train', False):
-            self.adv_teacher = SmartPerturbation(config['adv_epsilon'],
-                    config['multi_gpu_on'],
-                    config['adv_step_size'],
-                    config['adv_noise_var'],
-                    config['adv_p_norm'],
-                    config['adv_k'],
-                    config['fp16'],
-                    config['encoder_type'],
-                    loss_map=self.adv_task_loss_criterion,
-                    norm_level=config['adv_norm_level'])
-
 
     def _get_param_groups(self):
         no_decay = ['bias', 'gamma', 'beta', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -144,16 +124,6 @@ class MTDNNModel(object):
         if state_dict and 'optimizer' in state_dict:
             self.optimizer.load_state_dict(state_dict['optimizer'])
 
-        if self.config['fp16']:
-            # try:
-            #     from apex import amp
-            #     global amp
-            # except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
-            model, optimizer = amp.initialize(self.network, self.optimizer, opt_level=self.config['fp16_opt_level'])
-            self.network = model
-            self.optimizer = optimizer
-
         if self.config.get('have_lr_scheduler', False):
             if self.config.get('scheduler_type', 'rop') == 'rop':
                 self.scheduler = ReduceLROnPlateau(self.optimizer, mode='max', factor=self.config['lr_gamma'], patience=3)
@@ -164,6 +134,8 @@ class MTDNNModel(object):
                 self.scheduler = MultiStepLR(self.optimizer, milestones=milestones, gamma=self.config.get('lr_gamma'))
         else:
             self.scheduler = None
+        
+        self.optimizer.zero_grad()
 
     def _setup_lossmap(self, config):
         task_def_list: List[TaskDef] = config['task_def_list']
@@ -172,26 +144,6 @@ class MTDNNModel(object):
             cs = task_def.loss
             lc = LOSS_REGISTRY[cs](name='Loss func of task {}: {}'.format(idx, cs))
             self.task_loss_criterion.append(lc)
-
-    def _setup_kd_lossmap(self, config):
-        task_def_list: List[TaskDef] = config['task_def_list']
-        self.kd_task_loss_criterion = []
-        if config.get('mkd_opt', 0) > 0:
-            for idx, task_def in enumerate(task_def_list):
-                cs = task_def.kd_loss
-                assert cs is not None
-                lc = LOSS_REGISTRY[cs](name='KD Loss func of task {}: {}'.format(idx, cs))
-                self.kd_task_loss_criterion.append(lc)
-
-    def _setup_adv_lossmap(self, config):
-        task_def_list: List[TaskDef] = config['task_def_list']
-        self.adv_task_loss_criterion = []
-        if config.get('adv_train', False):
-            for idx, task_def in enumerate(task_def_list):
-                cs = task_def.adv_loss
-                assert cs is not None
-                lc = LOSS_REGISTRY[cs](name='Adv Loss func of task {}: {}'.format(idx, cs))
-                self.adv_task_loss_criterion.append(lc)
     
     def _setup_tokenizer(self):
         try:
@@ -199,20 +151,6 @@ class MTDNNModel(object):
             self.tokenizer = AutoTokenizer.from_pretrained(self.config['init_checkpoint'], cache_dir=self.config['transformer_cache'])
         except:
             self.tokenizer = None
-        
-
-    def _to_cuda(self, tensor):
-        if tensor is None: return tensor
-
-        if isinstance(tensor, list) or isinstance(tensor, tuple):
-            #y = [e.cuda(non_blocking=True) for e in tensor]
-            y = [e.to(self.device) for e in tensor]
-            for e in y:
-                e.requires_grad = False
-        else:
-            y = tensor.to(self.device)
-            y.requires_grad = False
-        return y
 
     def __call__(self, inputs):
         logits, head_probe_logits = self.mnetwork(*inputs)
@@ -220,7 +158,6 @@ class MTDNNModel(object):
     def update(self, batch_meta, batch_data):
         self.network.train()
         y = batch_data[batch_meta['label']]
-        y = self._to_cuda(y) if self.config['cuda'] else y
 
         task_id = batch_meta['task_id']
         inputs = batch_data[:batch_meta['input_len']]
@@ -246,6 +183,7 @@ class MTDNNModel(object):
         loss = 0
         loss_criterion = self.task_loss_criterion[task_id]
         if loss_criterion and (y is not None):
+            y.to(logits.device)
             if head_probe_logits is None:
                 loss = loss_criterion(logits, y, weight, ignore_index=-1)
             else:

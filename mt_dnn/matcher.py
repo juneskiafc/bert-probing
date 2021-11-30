@@ -21,7 +21,7 @@ def generate_decoder_opt(enable_san, max_opt):
     return opt_v
 
 class SANBertNetwork(nn.Module):
-    def __init__(self, opt, bert_config=None, initial_from_local=False):
+    def __init__(self, opt):
         super(SANBertNetwork, self).__init__()
         self.dropout_list = nn.ModuleList()
 
@@ -31,13 +31,8 @@ class SANBertNetwork(nn.Module):
         self.preloaded_config = None
 
         literal_encoder_type = EncoderModelType(self.encoder_type).name.lower()
-        config_class, model_class, _ = MODEL_CLASSES[literal_encoder_type]
-        if not initial_from_local:
-            self.bert = model_class.from_pretrained(opt['init_checkpoint'], cache_dir=opt['transformer_cache'])
-        else:
-            self.preloaded_config = config_class.from_dict(opt)  # load config from opt
-            self.preloaded_config.output_hidden_states = True # return all hidden states
-            self.bert = model_class(self.preloaded_config)
+        _, model_class, _ = MODEL_CLASSES[literal_encoder_type]
+        self.bert = model_class.from_pretrained(opt['init_checkpoint'], cache_dir=opt['transformer_cache'])
                     
         hidden_size = self.bert.config.hidden_size
 
@@ -108,9 +103,9 @@ class SANBertNetwork(nn.Module):
                 assert self_attention_layer.__class__.__name__ == 'BertSelfAttention', self_attention_layer.__class__.__name__
                 return self_attention_layer
     
-    def attach_head_probe(self, attention_layer_to_probe, head_idx_to_probe, n_classes):
+    def attach_head_probe(self, attention_layer_to_probe, head_idx_to_probe, n_classes, device):
         layer = self.get_attention_layer(attention_layer_to_probe)
-        layer.attach_head_probe(attention_layer_to_probe, head_idx_to_probe, n_classes)
+        layer.attach_head_probe(head_idx_to_probe, n_classes, device)
     
     def detach_head_probe(self, hl):
         layer = self.get_attention_layer(hl)

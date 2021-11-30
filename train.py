@@ -325,6 +325,7 @@ def main():
 
     model = MTDNNModel(
         opt,
+        devices=args.devices,
         state_dict=state_dict,
         num_train_step=num_all_batches)
 

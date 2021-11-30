@@ -238,10 +238,10 @@ class BertSelfAttention(nn.Module):
         self.is_decoder = config.is_decoder
         self.head_probe = False
     
-    def attach_head_probe(self, head_idx, n_classes=3, device_id=-1):
+    def attach_head_probe(self, head_idx, n_classes, device):
         self.head_probe = True
         self.head_probe_head_idx = head_idx
-        self.head_probe_dense_layer = nn.Linear(self.attention_head_size, n_classes).cuda(device=device_id)
+        self.head_probe_dense_layer = nn.Linear(self.attention_head_size, n_classes).cuda(device)
 
     def detach_head_probe(self):
         delattr(self, 'head_probe_dense_layer')
