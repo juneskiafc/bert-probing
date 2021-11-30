@@ -1,84 +1,77 @@
+from typing import List
 import subprocess
+import itertools
 from pathlib import Path
 import torch
+from experiments.exp_def import (
+    Experiment,
+    LingualSetting,
+    TaskDefs
+)
 
-def probe_heads(setting, task, base=False, models_per_gpu=2):
-    if setting == 'cross':
-        shorthand_setting = 'cl'
-    elif setting == 'multi':
-        shorthand_setting = 'ml'    
-    
-    if base:
-        shorthand_setting = 'base'
+def probe_heads(setting: LingualSetting,
+                finetuned_task: Experiment,
+                task: Experiment,
+                models_per_gpu: int = 2,
+                devices: List = list(range(torch.cuda.device_count()))):
+    """
+    Probe heads for a model.
 
-    task_root = Path(f'experiments/{task}')
-    if task == 'NLI':
-        task_root = task_root.joinpath(setting)
-        train_dataset = setting
-        n_classes = 3
-        checkpoint_task = 'NLI'
-    elif task == 'POS':
-        train_dataset = 'pos'
-        checkpoint_task = 'POS'
-        n_classes = 17
-    elif task == 'NER':
-        checkpoint_task = 'NER'
-        n_classes = 7
-        train_dataset = 'ner'
-    elif task == 'MARC':
-        checkpoint_task = 'MARC'
-        n_classes = 5
-        train_dataset = 'marc'
-    elif task == "PAWSX":
-        checkpoint_task = 'PAWSX'
-        n_classes = 2
-        train_dataset = 'pawsx'
+    Args:
+    setting: cross, multi, or base, which finetuned model to probe. If base, just pretrained BERT.
+    finetuned_task: the task that the model was finetuned on.
+    task: the task to probe heads on.
+    models_per_gpu: how many models should each gpu process?
+    devices: devices to use.
+    """
+    # where all the data and task_def are stored.
+    task_root = Path(f'experiments/{task.name}')
 
-    task_def = task_root.joinpath('task_def.yaml')
-    data_dir = task_root.joinpath('bert-base-multilingual-cased')
+    # programmatically get n_classes for task
+    task_def_path = task_root.joinpath('task_def.yaml')
+    task_def = TaskDefs(task_def_path).get_task_def(task.name.lower())
+    n_classes = task_def.n_class
+    checkpoint_dir = Path(f'checkpoint/head_probing/{finetuned_task.name}').joinpath(task.name) # where the probed checkpoints will be
 
-    checkpoint_dir = Path(f'checkpoint/head_probing').joinpath(checkpoint_task)
-
+    # only probe heads that we haven't already probed.
     heads_to_probe = []
-    for hl in range(12):
-        for hi in range(12):
-            if not base:
-                dir_for_head = checkpoint_dir.joinpath(setting, f'{shorthand_setting}_{hl}/{shorthand_setting}_{hl}_{hi}')
-            else:
-                dir_for_head = checkpoint_dir.joinpath('base', f'{shorthand_setting}_{hl}/{shorthand_setting}_{hl}_{hi}')
-            if len(list(dir_for_head.rglob('*.pt'))) > 0:
-                continue
-            else:
-                heads_to_probe.append((hl, hi))
+    for hl, hi in itertools.product(range(12), repeat=2):
+        dir_for_head = checkpoint_dir.joinpath(setting.name.lower(), str(hl), str(hi))
+        if len(list(dir_for_head.rglob('*.pt'))) == 0:
+            heads_to_probe.append((hl, hi))
 
     print('heads to probe:')
     for hp in heads_to_probe:
         print(hp)
     print("\n")
     
+    # distribute heads to probe to different gpus.
     device_ids = []
-    available_devices = [0, 1, 2, 3]
     for i, _ in enumerate(heads_to_probe):
-        device_ids.append(available_devices[i % len(available_devices)])
+        device_ids.append(devices[i % len(devices)])
 
     # Run commands in parallel
     processes = []
-    template = f'python train.py --task_def {task_def} '
-    template += f"--data_dir {data_dir} --train_datasets {train_dataset} --local_rank -1 "
-    if not base: 
-        template += f"--resume --model_ckpt checkpoint/{setting}/model_5.pt "
-
     for i, (hl, hi) in enumerate(heads_to_probe):
         did = device_ids[i]
-        exp_name = f'{shorthand_setting}_{hl}_{hi}'
-        checkpoint_dir_for_head = checkpoint_dir.joinpath(f'{shorthand_setting}_{hl}')
-        template += f"--head_probe_n_classes {n_classes} --epochs 2 --output_dir {checkpoint_dir_for_head} "
-        template += f"--init_checkpoint bert-base-multilingual-cased --device_id {did} "
-        template += f"--exp_name {exp_name} --head_probe --head_probe_layer {hl} --head_probe_idx {hi} "
+        checkpoint_dir_for_head = checkpoint_dir.joinpath(setting.name.lower(), str(hl), str(hi))
+
+        template = f'python train.py --local_rank -1 '
+        template += f'--dataset_name {task.name}/cross ' # always train head probes using cross-ling setting
+        if setting is not LingualSetting.BASE:
+            template += f"--resume --model_ckpt checkpoint/{finetuned_task.name}_{setting.name}/model_5.pt "
+        
+        template += f"--epochs 2 --output_dir {checkpoint_dir_for_head} "
+        template += f"--init_checkpoint bert-base-multilingual-cased --devices {did} "
+        template += f'--head_probe --head_probe_layer {hl} --head_probe_idx {hi} --head_probe_n_classes {n_classes}'
+
+        raise ValueError(template)
+    
         process = subprocess.Popen(template, shell=True, stdout=None)
         processes.append(process)
 
-        if len(processes) == len(available_devices) * models_per_gpu:
+        # wait if filled
+        if len(processes) == len(devices) * models_per_gpu:
             _ = [p.wait() for p in processes]
             processes = []
 
@@ -103,9 +96,10 @@ def compress_saved_heads(task):
                 torch.save(hp_state_dict, ckpt_file)
 
 if __name__ == '__main__':
-    task = 'PAWSX'
-    for setting in ['cross', 'multi', 'base']:
-        if setting != 'base':
-            probe_heads(setting, task, base=False)
-        else:
-            probe_heads('cross', task, base=True)
+    task = Experiment.POS
+    finedtuned_task = Experiment.POS
+
+    for setting in list(LingualSetting):
+        probe_heads(setting=setting,            
+                    finetuned_task=finedtuned_task,
+                    task=task)

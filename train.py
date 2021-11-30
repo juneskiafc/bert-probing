@@ -216,15 +216,9 @@ logger = create_logger(__name__, to_disk=True, log_file=log_path)
 # make output dir and set to absolute path.
 if not args.head_probe:
     output_dir = Path(output_dir).joinpath(exp_name)
-else:
-    setting = args.model_ckpt.split("/")[-2]
-    if "/" in dataset_name:
-        output_dir = Path(output_dir).joinpath(dataset_name.split("/")[0], setting)
-    else:
-        output_dir = Path(output_dir).joinpath(dataset_name, setting)
 
+output_dir = Path(os.path.abspath(output_dir))
 output_dir.mkdir(exist_ok=True, parents=True)
-output_dir = os.path.abspath(output_dir)
 
 def main():
     print_message(logger, 'Launching MT-DNN training.')

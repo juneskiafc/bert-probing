@@ -1,10 +1,32 @@
 # coding=utf-8
 # Copyright (c) Microsoft. All rights reserved.
 import yaml
+from enum import Enum
 from data_utils.vocab import Vocabulary
-from data_utils.task_def import TaskType, DataFormat, EncoderModelType
+from data_utils.task_def import TaskType, DataFormat
 from data_utils.metrics import Metric
 from mt_dnn.loss import LossCriterion
+
+class Experiment(Enum):
+    NLI = 0
+    POS = 1
+    NER = 2
+    PAWSX = 3
+    MARC = 4
+
+class LingualSetting(Enum):
+    BASE = 0
+    CROSS = 1
+    MULTI = 2
+
+    @classmethod
+    def get_shorthand(cls, setting):
+        if setting is cls.BASE:
+            return 'base'
+        elif setting is cls.CROSS:
+            return 'cl'
+        elif setting is cls.MULTI:
+            return 'ml'
 
 class TaskDef(dict):
     def __init__(self, label_vocab, n_class, data_type, task_type, metric_meta, split_names, enable_san, dropout_p, loss, kd_loss, adv_loss):
