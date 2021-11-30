@@ -8,6 +8,7 @@ wandb/
 *.tsv
 *.json
 *.txt
+!requirements.txt
 *.conllu
 *.jsonl
 *.md
