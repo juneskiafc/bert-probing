@@ -1,5 +1,7 @@
 from datasets import load_dataset, concatenate_datasets, Dataset
 from pathlib import Path
+import sys
+sys.path.append('/home/june/mt-dnn/')
 from experiments.exp_def import LingualSetting
 
 def _prepare_data(train_langs, test_langs, out_dir):
@@ -27,7 +29,7 @@ def _prepare_data(train_langs, test_langs, out_dir):
                 dataset.to_json(out_file)
 
             # load and save as tsv in mtdnn format
-            df = Dataset.from_json(out_file)
+            df = Dataset.from_json(str(out_file))
             with open(final_out_file, 'w') as f:
                 for i, row in enumerate(df):
                     premise = row['sentence1']
