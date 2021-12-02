@@ -1,6 +1,7 @@
 from typing import List
 import subprocess
 import itertools
+from argparse import ArgumentParser
 from pathlib import Path
 import torch
 from experiments.exp_def import (
@@ -76,28 +77,19 @@ def probe_heads(setting: LingualSetting,
     # Collect statuses
     _ = [p.wait() for p in processes]
 
-def compress_saved_heads(task):
-    ckpt_root = Path(f'checkpoint/head_probing/{task}')
-    for (setting, sh_setting) in [('cross', 'cl'), ('multi', 'ml')]:
-        for hl in range(12):
-            for hi in range(12):
-                ckpt_dir = ckpt_root.joinpath(setting, f'{sh_setting}_{hl}', f'{sh_setting}_{hl}_{hi}')
-                ckpt_file = list(ckpt_dir.rglob('*.pt'))[0]
-                state_dict = torch.load(ckpt_file).state_dict()
-                hp_weights = state_dict[f'bert.encoder.layer.{hl}.attention.self.head_probe_dense_layer.weight']
-                hp_bias = state_dict[f'bert.encoder.layer.{hl}.attention.self.head_probe_dense_layer.bias']
-
-                hp_state_dict = {
-                    f'head_probe_dense_layer.weight': hp_weights,
-                    f'.head_probe_dense_layer.bias': hp_bias
-                }
-                torch.save(hp_state_dict, ckpt_file)
-
 if __name__ == '__main__':
-    task = Experiment.NER
-    finedtuned_task = Experiment.POS
+    parser = ArgumentParser()
+    parser.add_argument('--task', type=str)
+    parser.add_argument('--finetuned_task', type=str)
+    parser.add_argument('--devices', nargs='+')
+    args = parser.parse_args()
+
+    task = Experiment[args.task.upper()]
+    finetuned_task = Experiment[args.finetuned_task.upper()]
+    devices = [int(d) for d in args.devices]
 
     for setting in list(LingualSetting):
         probe_heads(setting=setting,            
-                    finetuned_task=finedtuned_task,
-                    task=task)
+                    finetuned_task=finetuned_task,
+                    task=task,
+                    devices=args.devices)
