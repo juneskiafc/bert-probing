@@ -60,7 +60,9 @@ def probe_heads(setting: LingualSetting,
         template = f'python train.py --local_rank -1 '
         template += f'--dataset_name {task.name}/cross ' # always train head probes using cross-ling setting
         if setting is not LingualSetting.BASE:
-            template += f"--resume --model_ckpt checkpoint/{finetuned_task.name}_{setting.name.lower()}/model_5.pt "
+            finetuned_checkpoint_dir = Path(f'checkpoint/{finetuned_task.name}_{setting.name.lower()}')
+            finetuned_checkpoint = list(finetuned_checkpoint_dir.rglob('model_5*.pt'))[0]
+            template += f"--resume --model_ckpt {finetuned_checkpoint} "
         
         template += f"--epochs 2 --output_dir {checkpoint_dir_for_head} "
         template += f"--init_checkpoint bert-base-multilingual-cased --devices {did} "

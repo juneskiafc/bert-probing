@@ -307,7 +307,7 @@ def main():
 
     # if resuming, load state dict, and get init epoch and step.
     if args.resume:
-        assert args.model_ckpt != '' and Path(args.model_ckpt).is_file()
+        assert args.model_ckpt != '' and Path(args.model_ckpt).is_file(), args.model_ckpt
         print_message(logger, f'loading model from {args.model_ckpt}')
         state_dict = torch.load(args.model_ckpt)
 
