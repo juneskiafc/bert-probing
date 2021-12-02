@@ -38,7 +38,7 @@ def probe_heads(setting: LingualSetting,
     heads_to_probe = []
     for hl, hi in itertools.product(range(12), repeat=2):
         dir_for_head = checkpoint_dir.joinpath(setting.name.lower(), str(hl), str(hi))
-        if len(list(dir_for_head.rglob('*.pt'))) == 0:
+        if len(list(dir_for_head.rglob('model_1_*.pt'))) == 0:
             heads_to_probe.append((hl, hi))
 
     print('heads to probe:')
