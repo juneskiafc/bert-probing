@@ -315,10 +315,11 @@ class MTDNNModel(object):
             model = self.network
         network_state = dict([(k, v.cpu()) for k, v in model.state_dict().items()])
         if self.head_probe:
+            state_to_save = {}
             for k, v in network_state.items():
-                if 'head_probe' not in k:
-                    del network_state[k]
-            params = {'state': network_state}
+                if 'head_probe' in k:
+                    state_to_save[k] = v
+            params = {'state': state_to_save}
         else:
             params = {
                 'state': network_state,
