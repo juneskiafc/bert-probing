@@ -40,16 +40,16 @@ def probe_heads(setting: LingualSetting,
         dir_for_head = checkpoint_dir.joinpath(setting.name.lower(), str(hl), str(hi))
         if len(list(dir_for_head.rglob('model_1_*.pt'))) == 0:
             heads_to_probe.append((hl, hi))
-
-    print('heads to probe:')
-    for hp in heads_to_probe:
-        print(hp)
-    print("\n")
     
     # distribute heads to probe to different gpus.
     device_ids = []
     for i, _ in enumerate(heads_to_probe):
         device_ids.append(devices[i % len(devices)])
+    
+    print('heads to probe:')
+    for i, hp in enumerate(heads_to_probe):
+        print(hp, f'GPU: {device_ids[i]}')
+    print("\n")
 
     # Run commands in parallel
     processes = []
@@ -59,6 +59,7 @@ def probe_heads(setting: LingualSetting,
 
         template = f'python train.py --local_rank -1 '
         template += f'--dataset_name {task.name}/cross ' # always train head probes using cross-ling setting
+        
         if setting is not LingualSetting.BASE:
             finetuned_checkpoint_dir = Path(f'checkpoint/{finetuned_task.name}_{setting.name.lower()}')
             finetuned_checkpoint = list(finetuned_checkpoint_dir.rglob('model_5*.pt'))[0]
@@ -84,6 +85,7 @@ if __name__ == '__main__':
     parser.add_argument('--task', type=str)
     parser.add_argument('--finetuned_task', type=str)
     parser.add_argument('--devices', nargs='+')
+    parser.add_argument('--models_per_gpu', type=int, default=1)
     args = parser.parse_args()
 
     task = Experiment[args.task.upper()]

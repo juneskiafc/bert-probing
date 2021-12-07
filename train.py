@@ -326,7 +326,6 @@ def main():
     model = MTDNNModel(
         opt,
         devices=args.devices,
-        state_dict=state_dict,
         num_train_step=num_all_batches)
 
     if args.kqv_probing:
@@ -382,6 +381,13 @@ def main():
         # freeze all params
         for p in model.network.parameters():
             p.requires_grad = False
+        
+        # load model, making sure to match scoring_list params
+        if args.model_ckpt != '':
+            state_dict = torch.load(args.model_ckpt)
+            state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
+            state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
+            model.load_state_dict(state_dict)
         
         # then attach probing head
         model.attach_head_probe(
