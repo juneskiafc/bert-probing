@@ -418,7 +418,7 @@ def main():
             model.update(batch_meta, batch_data)
 
             if (model.updates - 1) % (args.log_per_updates) == 0:
-                print_message(logger, f"[e{epoch}] [{model.updates}/{n_batch_per_epoch}] train loss: {model.train_loss.avg:.5f}")
+                print_message(logger, f"[e{epoch}] [{model.updates % n_batch_per_epoch}/{n_batch_per_epoch}] train loss: {model.train_loss.avg:.5f}")
 
                 if args.wandb:
                     wandb.log({

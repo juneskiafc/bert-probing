@@ -48,7 +48,7 @@ def probe_heads(setting: LingualSetting,
     
     print('heads to probe:')
     for i, hp in enumerate(heads_to_probe):
-        print(hp, f'GPU: {device_ids[i]}')
+        print(setting.name.lower(), hp, f'GPU: {device_ids[i]}')
     print("\n")
 
     # Run commands in parallel
@@ -68,17 +68,29 @@ def probe_heads(setting: LingualSetting,
         template += f"--epochs 2 --output_dir {checkpoint_dir_for_head} "
         template += f"--init_checkpoint bert-base-multilingual-cased --devices {did} "
         template += f'--head_probe --head_probe_layer {hl} --head_probe_idx {hi} --head_probe_n_classes {n_classes}'
-    
-        process = subprocess.Popen(template, shell=True, stdout=None)
-        processes.append(process)
+
+        print(f'[{setting.name}] [GPU {did}] {finetuned_task.name}->{task.name} {(hl, hi)}')
+        process = subprocess.Popen(template, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        processes.append((hl, hi, did, process))
 
         # wait if filled
         if len(processes) == len(devices) * models_per_gpu:
-            _ = [p.wait() for p in processes]
+            results = [p[-1].communicate() for p in processes]
+            for ri, r in enumerate(results):
+                prefix_str = f'[{setting.name}] [GPU {processes[ri][2]}] {(processes[ri][:2])}:'
+
+                if (r[1] is not None) and (processes[ri][-1].returncode == 1):
+                    errors = r[1].decode('utf-8').split('\n')
+                    print(prefix_str)
+                    for e in errors:
+                        print(f'\t{e}')
+                    raise ValueError
+                else:
+                    print(f'{prefix_str} completed')
             processes = []
 
     # Collect statuses
-    _ = [p.wait() for p in processes]
+    results = [p[-1].communicate() for p in processes]
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -92,8 +104,10 @@ if __name__ == '__main__':
     finetuned_task = Experiment[args.finetuned_task.upper()]
     devices = [int(d) for d in args.devices]
 
-    for setting in list(LingualSetting):
-        probe_heads(setting=setting,            
-                    finetuned_task=finetuned_task,
-                    task=task,
-                    devices=args.devices)
+    for task in list(Experiment):
+        if task is not Experiment.NLI:
+            for setting in list(LingualSetting):
+                probe_heads(setting=setting,            
+                            finetuned_task=finetuned_task,
+                            task=task,
+                            devices=args.devices)
