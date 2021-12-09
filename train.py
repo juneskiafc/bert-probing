@@ -309,7 +309,7 @@ def main():
     if args.resume:
         assert args.model_ckpt != '' and Path(args.model_ckpt).is_file()
         print_message(logger, f'loading model from {args.model_ckpt}')
-        state_dict = torch.load(args.model_ckpt)
+        state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
 
         split_model_name = args.model_ckpt.split("/")[-1].split("_")
         if len(split_model_name) > 2:

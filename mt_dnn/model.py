@@ -37,10 +37,6 @@ class MTDNNModel(object):
         if state_dict:
             self.load_state_dict(state_dict)
 
-        # setup optimizer
-        optimizer_parameters = self._get_param_groups()
-        self._setup_optim(optimizer_parameters, state_dict, num_train_step)
-
         # multi GPU, single, or CPU
         if devices is not None:
             self.device = devices[0]
@@ -51,6 +47,10 @@ class MTDNNModel(object):
         else:
             self.mnetwork = self.network
         
+        # setup optimizer
+        optimizer_parameters = self._get_param_groups()
+        self._setup_optim(optimizer_parameters, state_dict, num_train_step)
+
         self._setup_lossmap(self.config)
         self._setup_tokenizer()
 

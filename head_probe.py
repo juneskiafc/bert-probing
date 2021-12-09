@@ -45,6 +45,9 @@ def probe_heads(setting: LingualSetting,
         print(hp)
     print("\n")
     
+    if len(heads_to_probe) == 0:
+        return
+    
     # distribute heads to probe to different gpus.
     device_ids = []
     for i, _ in enumerate(heads_to_probe):
@@ -55,16 +58,19 @@ def probe_heads(setting: LingualSetting,
     for i, (hl, hi) in enumerate(heads_to_probe):
         did = device_ids[i]
         checkpoint_dir_for_head = checkpoint_dir.joinpath(setting.name.lower(), str(hl), str(hi))
+        checkpoint_dir_for_head.mkdir(parents=True, exist_ok=True)
 
         template = f'python train.py --local_rank -1 '
         template += f'--dataset_name {task.name}/cross ' # always train head probes using cross-ling setting
         if setting is not LingualSetting.BASE:
-            template += f"--resume --model_ckpt checkpoint/{finetuned_task.name}_{setting.name}/model_5.pt "
+            finetuned_checkpoint_dir = Path(f'checkpoint/{finetuned_task.name}_{setting.name.lower()}')
+            finetuned_checkpoint = list(finetuned_checkpoint_dir.rglob("*.pt"))[0]
+            template += f"--resume --model_ckpt {finetuned_checkpoint} "
         
         template += f"--epochs 2 --output_dir {checkpoint_dir_for_head} "
         template += f"--init_checkpoint bert-base-multilingual-cased --devices {did} "
         template += f'--head_probe --head_probe_layer {hl} --head_probe_idx {hi} --head_probe_n_classes {n_classes}'
-    
+
         process = subprocess.Popen(template, shell=True, stdout=None)
         processes.append(process)
 
@@ -94,7 +100,7 @@ def compress_saved_heads(task):
                 torch.save(hp_state_dict, ckpt_file)
 
 if __name__ == '__main__':
-    task = Experiment.NER
+    task = Experiment.POS
     finedtuned_task = Experiment.POS
 
     for setting in list(LingualSetting):
