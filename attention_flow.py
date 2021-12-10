@@ -1,7 +1,8 @@
 from pathlib import Path
 import torch
 from transformers.models.auto.tokenization_auto import AutoTokenizer
-from experiments.exp_def import TaskDefs, EncoderModelType, TaskDef
+from experiments.exp_def import TaskDefs, TaskDef, LingualSetting, Experiment
+from data_utils.task_def import EncoderModelType
 from mt_dnn.model import MTDNNModel
 from mt_dnn.batcher import SingleTaskDataset, Collater
 from torch.utils.data import DataLoader
@@ -13,100 +14,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.stats import spearmanr
 from time import time
-import networkx as nx
-
-def get_adjmat(mat, input_tokens=None):
-    n_layers, length, _ = mat.shape
-    adj_mat = np.zeros(((n_layers+1)*length, (n_layers+1)*length))
-
-    if input_tokens is not None:
-        labels_to_index = {}
-        for k in np.arange(length):
-            labels_to_index['C_'+str(k)] = k
-
-    for i in np.arange(1,n_layers+1):
-        for k_f in np.arange(length):
-            index_from = (i)*length+k_f
-
-            label = "L"+str(i)+"_"+str(k_f)
-            labels_to_index[label] = index_from
-
-            for k_t in np.arange(length):
-                index_to = (i-1)*length+k_t
-                adj_mat[index_from][index_to] = mat[i-1][k_f][k_t]
-                
-    return adj_mat, labels_to_index 
-
-def get_graph(adjmat):
-    A = adjmat
-    G = nx.from_numpy_matrix(A, create_using=nx.DiGraph())
-    for i in np.arange(A.shape[0]):
-        for j in np.arange(A.shape[1]):
-            nx.set_edge_attributes(G, {(i,j): A[i,j]}, 'capacity')
-    
-    return G
-
-def draw_attention_graph(adjmat, labels_to_index, n_layers, length):
-    A = adjmat
-    G = nx.from_numpy_matrix(A, create_using=nx.DiGraph())
-    for i in np.arange(A.shape[0]):
-        for j in np.arange(A.shape[1]):
-            nx.set_edge_attributes(G, {(i,j): A[i,j]}, 'capacity')
-
-    pos = {}
-    label_pos = {}
-    for i in np.arange(n_layers+1):
-        for k_f in np.arange(length):
-            pos[i*length+k_f] = ((i+0.4)*2, length - k_f)
-            label_pos[i*length+k_f] = (i*2, length - k_f)
-
-    index_to_labels = {}
-    for key in labels_to_index:
-        index_to_labels[labels_to_index[key]] = key.split("_")[-1]
-        if labels_to_index[key] >= length:
-            index_to_labels[labels_to_index[key]] = ''
-
-    #plt.figure(1,figsize=(20,12))
-
-    nx.draw_networkx_nodes(G,pos,node_color='green', labels=index_to_labels, node_size=50)
-    nx.draw_networkx_labels(G,pos=label_pos, labels=index_to_labels, font_size=18)
-
-    all_weights = []
-    #4 a. Iterate through the graph nodes to gather all the weights
-    for (node1,node2,data) in G.edges(data=True):
-        all_weights.append(data['weight']) #we'll use this when determining edge thickness
-
-    #4 b. Get unique weights
-    unique_weights = list(set(all_weights))
-
-    #4 c. Plot the edges - one by one!
-    for weight in unique_weights:
-        #4 d. Form a filtered list with just the weight you want to draw
-        weighted_edges = [(node1,node2) for (node1,node2,edge_attr) in G.edges(data=True) if edge_attr['weight']==weight]
-        #4 e. I think multiplying by [num_nodes/sum(all_weights)] makes the graphs edges look cleaner
-        
-        w = weight #(weight - min(all_weights))/(max(all_weights) - min(all_weights))
-        width = w
-        nx.draw_networkx_edges(G,pos,edgelist=weighted_edges,width=width, edge_color='darkblue')
-    
-    return G
-
-def compute_flows(G, labels_to_index, input_nodes, output_nodes, length):
-    flow_values = np.zeros((len(input_nodes), len(output_nodes)))
-
-    # from target to source
-    for oi, oup_node_key in enumerate(output_nodes):
-        if oup_node_key not in input_nodes:
-            u = labels_to_index[oup_node_key]
-
-            for ii, inp_node_key in enumerate(input_nodes):
-                v = labels_to_index[inp_node_key]
-                flow_value = nx.maximum_flow_value(G,u,v, flow_func=nx.algorithms.flow.edmonds_karp)
-
-                flow_values[ii, oi] = flow_value
-            flow_values[oi] /= flow_values[oi].sum()
-            
-    return flow_values
 
 def compute_joint_attention(att_mat, add_residual=True):
     if add_residual:
@@ -151,42 +58,49 @@ def save_acc_matrix_as_heatmap(file_df=None, out_file=''):
     fig = heatmap.get_figure()
     fig.savefig(Path(out_file).with_suffix('.pdf'), bbox_inches='tight')
 
-def create_model(setting, device_id):
-    checkpoint_file = Path('checkpoint').joinpath(setting, 'model_5.pt')
-    dummy_task_def_path = Path(f'experiments/NLI/').joinpath(setting, 'task_def.yaml')
+def create_model(finetuned_task: Experiment, setting: LingualSetting, device_id: int):
+    """
+    Create the MT-DNN model, finetuend on finetuned_task in the {cross, multi}-lingual setting.
+    """
+    checkpoint_dir = Path('checkpoint').joinpath(f'{finetuned_task.name}_{setting.name.lower()}')
+    checkpoint_file = list(checkpoint_dir.rglob('*.pt'))[0]
+    state_dict = torch.load(checkpoint_file)
+    del state_dict['optimizer']
 
-    state_dict = torch.load(checkpoint_file, map_location=torch.device(device_id))
-    task_defs = TaskDefs(dummy_task_def_path)
+    task_def_path = Path(f'experiments').joinpath(
+        finetuned_task.name,
+        setting.name.lower(),
+        'task_def.yaml')
+    task_defs = TaskDefs(task_def_path)
 
     config = state_dict['config']
-    config["cuda"] = True
-    task_def = task_defs.get_task_def(setting)
+    task_def = task_defs.get_task_def(setting.name.lower())
     task_def_list = [task_def]
     config['task_def_list'] = task_def_list
 
-    ## temp fix
-    config['fp16'] = False
-    config['answer_opt'] = 0
-    config['adv_train'] = False
-    del state_dict['optimizer']
+    return MTDNNModel(config, state_dict=state_dict, devices=[device_id])
 
-    model = MTDNNModel(config, state_dict=state_dict, device=device_id)
-    return model
+def load_data(data_file, task_def_path, language):
+    """
+    Create the test dataloader to use.
 
-def load_data(data_file, task_def, language):
-    task_defs = TaskDefs(task_def)
+    Args:
+    data_file: The JSON test data file
+    task_def: Path to the task_def.
+    language: Specific language to use.
+    """
     test_data_set = SingleTaskDataset(
         data_file,
-        False,
-        maxlen=512,
-        task_id=0,
-        task_def=task_defs.get_task_def(language),
-        bert_model='bert-base-multilingual-cased'
+        is_train=False,
+        task_def=TaskDefs(task_def_path).get_task_def(language),
     )
 
-    encoder_type = EncoderModelType.BERT
-    collater = Collater(is_train=False, encoder_type=encoder_type)
-    test_data = DataLoader(test_data_set, batch_size=8, collate_fn=collater.collate_fn, pin_memory=True)
+    collater = Collater(is_train=False, encoder_type=EncoderModelType.BERT)
+    test_data = DataLoader(
+        test_data_set,
+        batch_size=8,
+        collate_fn=collater.collate_fn,
+        pin_memory=True)
 
     return test_data
 
@@ -197,8 +111,6 @@ def get_attention(model, batch_meta, batch_data):
     # prepare input
     task_id = batch_meta['task_id']
     task_def = TaskDef.from_dict(batch_meta['task_def'])
-    task_type = task_def.task_type
-    task_obj = tasks.get_task_obj(task_def)
     inputs = batch_data[:batch_meta['input_len']]
     if len(inputs) == 3:
         inputs.append(None)
@@ -208,7 +120,6 @@ def get_attention(model, batch_meta, batch_data):
     input_ids = inputs[0]
     token_type_ids = inputs[1]
     attention_mask = inputs[2]
-    y_input_ids = None
 
     outputs = model.network.bert(
         input_ids=input_ids,
@@ -315,15 +226,6 @@ if __name__ == '__main__':
                         # don't wanna touch original implementations of complex attention flow stuff
                         res_att_mat = res_att_mat.detach().cpu().numpy()
 
-                        # adjacency matrix
-                        # adj_mats = []
-                        # all_labels_to_index = []
-                        # for b in range(attentions.shape[0]):
-                        #     input_tokens = input_ids[b]
-                        #     res_adj_mat, labels_to_index = get_adjmat(res_att_mat[b, ...], input_tokens)
-                        #     adj_mats.append(res_adj_mat)
-                        #     all_labels_to_index.append(labels_to_index)
-
                         rollout_start = time()
                         all_joint_attentions = []
                         for b in range(attentions.shape[0]):
@@ -336,43 +238,10 @@ if __name__ == '__main__':
                         rollout_elapsed = time() - rollout_start
                         # print(f'rollout: {rollout_elapsed:.2f}s')
 
-                        # graphs for max flow
-                        # flow_start = time()
-                        # graphs = [get_graph(adjmat) for adjmat in adj_mats]
-                        # print(f'flow (creating graphs): {time()-flow_start:.2f}s')
-
                         # # select which nodes will be input, which nodes will be output
                         batch_size = attentions.shape[0]
                         seq_len = attentions.shape[-1]
                         n_layers = attentions.shape[1]
-
-                        # input_nodes = [f'C_{i}' for i in range(seq_len)]
-                        # output_nodes = [f'L{n_layers}_0']
-
-                        # cls_attention_flow = []
-                        # for i, graph in enumerate(graphs):
-                        #     flow_start_single_graph = time()
-                        #     flow_values = compute_flows(graph, all_labels_to_index[i], input_nodes, output_nodes, length=seq_len)
-                        #     raise ValueError(f'flow (one graph): {time()-flow_start_single_graph:.2f}s')
-                        #     cls_attention_flow.append(flow_values)
-                        
-                        # cls_attention_flow = np.stack(cls_attention_flow, axis=0)
-
-                        # flow_elapsed = time() - flow_start
-                        # print(f'flow: {flow_elapsed:.2f}s')
-                        
-                        # collect attention flow and attention rollout
-                        # output_root = f'attention_flow/{setting}/{language}/{batch_idx*batch_size}_{(batch_idx*batch_size)+batch_size-1}'
-
-                        # # flow_file = output_root + '_flow.npy'
-                        # rollout_file = output_root + '_roll.npy'
-                        # last3_file = output_root + '_l3.npy'
-                        # last_file = output_root + '_last.npy'
-
-                        # np.save(flow_file, cls_attention_flow)
-                        # np.save(rollout_file, cls_attention_rollout)
-                        # np.save(last3_file, last_three_attn.cpu())
-                        # np.save(last_file, last_layer_attn.cpu())
 
                         rollouts.append(cls_attention_rollout)
                         last3s.append(last_three_attn.cpu())

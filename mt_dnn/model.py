@@ -313,13 +313,19 @@ class MTDNNModel(object):
             model = self.mnetwork.module
         else:
             model = self.network
-        #network_state = dict([(k, v.cpu()) for k, v in self.network.state_dict().items()])
         network_state = dict([(k, v.cpu()) for k, v in model.state_dict().items()])
-        params = {
-            'state': network_state,
-            'optimizer': self.optimizer.state_dict(),
-            'config': self.config,
-        }
+        if self.head_probe:
+            state_to_save = {}
+            for k, v in network_state.items():
+                if 'head_probe' in k:
+                    state_to_save[k] = v
+            params = {'state': state_to_save}
+        else:
+            params = {
+                'state': network_state,
+                'optimizer': self.optimizer.state_dict(),
+                'config': self.config,
+            }
         torch.save(params, filename)
         logger.info('model saved to {}'.format(filename))
 

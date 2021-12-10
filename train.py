@@ -307,7 +307,7 @@ def main():
 
     # if resuming, load state dict, and get init epoch and step.
     if args.resume:
-        assert args.model_ckpt != '' and Path(args.model_ckpt).is_file()
+        assert args.model_ckpt != '' and Path(args.model_ckpt).is_file(), args.model_ckpt
         print_message(logger, f'loading model from {args.model_ckpt}')
         state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
 
@@ -326,7 +326,6 @@ def main():
     model = MTDNNModel(
         opt,
         devices=args.devices,
-        state_dict=state_dict,
         num_train_step=num_all_batches)
 
     if args.kqv_probing:
@@ -383,6 +382,13 @@ def main():
         for p in model.network.parameters():
             p.requires_grad = False
         
+        # load model, making sure to match scoring_list params
+        if args.model_ckpt != '':
+            state_dict = torch.load(args.model_ckpt)
+            state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
+            state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
+            model.load_state_dict(state_dict)
+        
         # then attach probing head
         model.attach_head_probe(
             args.head_probe_layer,
@@ -412,7 +418,7 @@ def main():
             model.update(batch_meta, batch_data)
 
             if (model.updates - 1) % (args.log_per_updates) == 0:
-                print_message(logger, f"[e{epoch}] [{model.updates}/{n_batch_per_epoch}] train loss: {model.train_loss.avg:.5f}")
+                print_message(logger, f"[e{epoch}] [{model.updates % n_batch_per_epoch}/{n_batch_per_epoch}] train loss: {model.train_loss.avg:.5f}")
 
                 if args.wandb:
                     wandb.log({

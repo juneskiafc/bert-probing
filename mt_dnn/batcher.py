@@ -237,7 +237,7 @@ class SingleTaskDataset(Dataset):
                  factor=1.0,
                  task_id=0,
                  task_def: TaskDef =None,
-                 bert_model='bert-base-uncased',
+                 bert_model='bert-base-multilingual-cased',
                  do_lower_case=True,
                  masked_lm_prob=0.15,
                  seed=13,
