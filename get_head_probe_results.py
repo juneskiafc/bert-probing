@@ -439,13 +439,13 @@ def get_lang_to_id(task: Experiment) -> Dict[str, List[int]]:
         
         return lang_to_id
     
-    if task.name is 'POS':
+    if task is Experiment.POS:
         return _pos()
-    elif task.name is 'NER':
+    elif task is Experiment.NER:
         return _ner()
-    elif task.name is 'PAWSX':
+    elif task is Experiment.PAWSX:
         return _pawsx()
-    elif task.name is 'MARC':
+    elif task is Experiment.MARC:
         return _marc()
     else:
         raise NotImplementedError(task.name)
