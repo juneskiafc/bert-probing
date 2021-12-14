@@ -193,6 +193,6 @@ if __name__ == '__main__':
         languages = ['en', 'fr', 'es', 'de']
     
     for model in ['cross', 'multi', 'base']:
-        get_lang_csvs(task, model, languages, do_individual=False)
+        get_lang_csvs(task, model, languages)
     
-    get_final_probing_result(task, languages, do_individual=False, do_combined=True)
+    get_final_probing_result(task, languages)

@@ -183,7 +183,7 @@ def evaluate_head_probe(hlhis, device_id, task_def, encoder_type, batch_size, ma
             return
 
         # load state dict for the attention head.
-        state_dict_for_head = root_ckpt_path.joinpath(f'head_probing/{TASK}/{setting}/{shorthand}_{hl}/{shorthand}_{hl}_{hi}/')
+        state_dict_for_head = root_ckpt_path.joinpath(f'head_probing/{TASK}/{SUBTASK}{setting}/{shorthand}_{hl}/{shorthand}_{hl}_{hi}/')
         state_dict_for_head = list(state_dict_for_head.rglob("*.pt"))[0]
         state_dict_for_head = torch.load(state_dict_for_head)
         if TASK != 'NLI':
@@ -286,6 +286,13 @@ def distribute_heads_to_gpus(available_devices):
     return hlhis, devices
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
+                        help='whether to use GPU acceleration.')
+    parser.add_argument('--device_id', type=int, default=0)
+    parser.add_argument('--task', type=str)
+    parser.add_argument('--subtask', type=str, default='head_probe')
+
     if False:
         models = [
             # 'ml_ltr'
