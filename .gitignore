@@ -2,6 +2,7 @@ checkpoint/
 __pycache__/
 .cache/
 logs/
+runs/
 wandb/
 
 *.csv
