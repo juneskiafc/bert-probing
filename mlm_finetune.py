@@ -29,8 +29,6 @@ from glob import glob
 from typing import Optional
 
 import torch
-from torch.utils.data import ConcatDataset
-
 import transformers
 from transformers import (
     CONFIG_MAPPING,
@@ -42,7 +40,6 @@ from transformers import (
     HfArgumentParser,
     LineByLineTextDataset,
     PreTrainedTokenizer,
-    TextDataset,
     Trainer,
     TrainingArguments,
     set_seed,
@@ -176,14 +173,12 @@ def main():
     os.environ['WANDB_PROJECT'] = 'soroush'
 
     training_args.disable_tqdm = True
-    training_args.run_name = f"{data_args.setting}_mlm_huggingface"
-    training_args.save_strategy = 'epoch'
-    training_args.logging_strategy = 'steps'
+    training_args.logging_steps = 100
     training_args.num_train_epochs = 6
     training_args.do_train = True
-    training_args.output_dir = training_args.output_dir + "/mlm_finetuned/huggingface/" + data_args.setting
-    mtdnn_checkpoint = f'checkpoint/{data_args.setting}/model_5.pt'
-    data_args.train_data_file = f'experiments/MLM/{data_args.setting}_train.txt'
+    training_args.output_dir = training_args.output_dir + f"/mlm_finetuned/huggingface/{training_args.run_name}/"
+    # mtdnn_checkpoint = f'checkpoint/{data_args.setting}/model_5.pt'
+    # data_args.train_data_file = f'experiments/MLM/{data_args.setting}_train.txt'
 
     if data_args.eval_data_file is None and training_args.do_eval:
         raise ValueError(
@@ -235,34 +230,34 @@ def main():
         cache_dir=model_args.cache_dir,
     )
 
-    if mtdnn_checkpoint:
-        mtdnn = torch.load(mtdnn_checkpoint, map_location=f'cuda:{data_args.device_id}')['state']
-        # these are leftovers from NLI finetuning, get rid
-        for param in [
-            'bert.pooler.dense.weight',
-            'bert.pooler.dense.bias',
-            'scoring_list.0.weight',
-            'scoring_list.0.bias',
-            'pooler.dense.weight',
-            'pooler.dense.bias']:
-            del mtdnn[param]
+    # if mtdnn_checkpoint:
+    #     mtdnn = torch.load(mtdnn_checkpoint, map_location=f'cuda:{data_args.device_id}')['state']
+    #     # these are leftovers from NLI finetuning, get rid
+    #     for param in [
+    #         'bert.pooler.dense.weight',
+    #         'bert.pooler.dense.bias',
+    #         'scoring_list.0.weight',
+    #         'scoring_list.0.bias',
+    #         'pooler.dense.weight',
+    #         'pooler.dense.bias']:
+    #         del mtdnn[param]
         
-        # init MLM head with pretrained BERT params
-        for param in [
-            "cls.predictions.bias",
-            "cls.predictions.transform.dense.weight",
-            "cls.predictions.transform.dense.bias",
-            "cls.predictions.transform.LayerNorm.weight",
-            "cls.predictions.transform.LayerNorm.bias",
-            "cls.predictions.decoder.weight",
-            "cls.predictions.decoder.bias"]:
-            mtdnn[param] = model.state_dict()[param]
+    #     # init MLM head with pretrained BERT params
+    #     for param in [
+    #         "cls.predictions.bias",
+    #         "cls.predictions.transform.dense.weight",
+    #         "cls.predictions.transform.dense.bias",
+    #         "cls.predictions.transform.LayerNorm.weight",
+    #         "cls.predictions.transform.LayerNorm.bias",
+    #         "cls.predictions.decoder.weight",
+    #         "cls.predictions.decoder.bias"]:
+    #         mtdnn[param] = model.state_dict()[param]
 
     # freeze everything except MLM head
-    model.load_state_dict(mtdnn, strict=True)
-    for n, p in model.named_parameters():
-        if 'cls' not in n:
-            p.requires_grad = False
+    # model.load_state_dict(mtdnn, strict=True)
+    # for n, p in model.named_parameters():
+    #     if 'cls' not in n:
+    #         p.requires_grad = False
 
     model.resize_token_embeddings(len(tokenizer))
 

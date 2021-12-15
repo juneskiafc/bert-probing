@@ -1,6 +1,7 @@
 import csv
-import jsonlines
+import shutil
 import sys
+import jsonlines
 from pathlib import Path
 csv.field_size_limit(sys.maxsize)
 
@@ -47,21 +48,20 @@ def raw_tsv_to_mtdnn_format(in_files, out_file, language=None, excl_langs=None):
 
 def make_main_data():
     # MNLI train set is also cross-lingual training set
-    # if not CROSS_TRAIN.is_file():
-    #     raw_tsv_to_mtdnn_format([MNLI_TRAIN], CROSS_TRAIN)
+    if not CROSS_TRAIN.is_file():
+        raw_tsv_to_mtdnn_format([MNLI_TRAIN], CROSS_TRAIN)
 
     # cross-lingual test set is XNLI test set
-    raw_tsv_to_mtdnn_format([XNLI_TEST], CROSS_TEST_TMP)
-    # if not CROSS_TEST.is_file():
-    #     raw_tsv_to_mtdnn_format([XNLI_TEST], CROSS_TEST)
+    if not CROSS_TEST.is_file():
+        raw_tsv_to_mtdnn_format([XNLI_TEST], CROSS_TEST)
 
     # multi-lingual train set is MNLI train + XNLI dev
-    # if not MULTI_TRAIN.is_file():
-    #     raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], MULTI_TRAIN)
+    if not MULTI_TRAIN.is_file():
+        raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], MULTI_TRAIN)
 
     # # multi-lingual test set is XNLI test
-    # if not MULTI_TEST.is_file():
-    #     shutil.copy(CROSS_TEST, MULTI_TEST)
+    if not MULTI_TEST.is_file():
+        shutil.copy(CROSS_TEST, MULTI_TEST)
 
 def make_ltr_only_data():
     out_file = DATA_PATH.joinpath(f'multi-ltr/multi-ltr_train.tsv')
