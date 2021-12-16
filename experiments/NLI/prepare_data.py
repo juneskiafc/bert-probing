@@ -86,9 +86,6 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
             out_file = DATA_PATH.joinpath(f'multi-{language}/multi-{language}_{split}.tsv')
         
         out_file.parent.mkdir(exist_ok=True)
-        # if out_file.is_file():
-        #     print(f'dataset for {language} exists.')
-        #     continue
 
         if split == 'train':
             if not exclude_english:
@@ -104,4 +101,4 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
             raw_tsv_to_mtdnn_format(datasets, out_file, language=language)
 
 if __name__ == '__main__':
-    make_per_language_multilingual_data(True, 'test')
+    pass
