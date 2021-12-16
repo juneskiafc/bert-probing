@@ -22,16 +22,12 @@ using a masked language modeling (MLM) loss. XLNet is fine-tuned using a permuta
 
 
 import logging
-import math
 import os
 from dataclasses import dataclass, field
-from glob import glob
 from typing import Optional
 
-import torch
 import transformers
 from transformers import (
-    CONFIG_MAPPING,
     MODEL_WITH_LM_HEAD_MAPPING,
     AutoConfig,
     AutoModelWithLMHead,
@@ -169,7 +165,6 @@ def main():
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     # env variables
-    os.environ['CUDA_VISIBLE_DEVICES'] = data_args.device_id
     os.environ['WANDB_PROJECT'] = 'soroush'
 
     training_args.disable_tqdm = True
@@ -225,10 +220,12 @@ def main():
 
     model = AutoModelWithLMHead.from_pretrained(
         model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
+        from_tf=False,
         config=config,
         cache_dir=model_args.cache_dir,
     )
+    
+    raise ValueError
 
     # if mtdnn_checkpoint:
     #     mtdnn = torch.load(mtdnn_checkpoint, map_location=f'cuda:{data_args.device_id}')['state']
