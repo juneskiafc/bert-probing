@@ -2,6 +2,11 @@ from pathlib import Path
 import csv
 import json
 import jsonlines
+import sys
+sys.path.append('/home/june/mt-dnn/')
+from experiments.exp_def import Experiment
+from datasets import Dataset
+from conllu import parse_incr
 
 ROOT = Path('experiments/NLI/')
 OUT_ROOT = Path('experiments/MLM/')
@@ -39,7 +44,7 @@ def make_mlm_json(in_file, out_file):
 
     return out_file
 
-def make_mlm_json_from_raw_xnli_dev(out_file, languages=None):
+def make_mlm_data_from_raw_xnli_dev(out_file, languages=None):
     if Path(out_file).is_file():
         return
     
@@ -61,7 +66,81 @@ def make_mlm_json_from_raw_xnli_dev(out_file, languages=None):
                     for sent in [premise, hypo]:
                         fw.write(sent)
                         fw.write("\n")
-                
+
+def make_mlm_data_from_pos(out_file):
+    DATA_ROOT = Path('/home/june/mt-dnn/experiments/POS/data')
+
+    train_data_files = [
+        DATA_ROOT.joinpath('en/UD_English-EWT'),
+        DATA_ROOT.joinpath('fr/UD_French-FTB'),
+        DATA_ROOT.joinpath('de/UD_German-GSD'),
+        DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+    ]
+    
+    with open(out_file, 'w', encoding='utf-8') as fw:
+        for data_dir in train_data_files:
+            with open(data_dir.joinpath(f'train.conllu'), 'r', encoding='utf-8') as f:
+                for i, tokenlist in enumerate(parse_incr(f)):
+                    fw.write(tokenlist.metadata['text'])
+                    fw.write('\n')
+
+def make_mlm_data_from_pawsx(out_file):
+    if Path(out_file).is_file():
+        return
+
+    tmp_out_file = 'experiments/PAWSX/multi/pawsx_train_tmp.json'
+
+    df = Dataset.from_json(str(tmp_out_file))
+    with open(out_file, 'w', encoding='utf-8') as f:
+        for i, row in enumerate(df):
+            premise = row['sentence1']
+            hypo = row['sentence2']
+
+            for sent in [premise, hypo]:
+                f.write(sent)
+                f.write('\n')
+
+def make_mlm_data_from_marc(out_file):
+    if Path(out_file).is_file():
+        return
+
+    tmp_out_file = 'experiments/MARC/multi/marc_train_tmp.json'
+
+    df = Dataset.from_json(str(tmp_out_file))
+    with open(out_file, 'w', encoding='utf-8') as f:
+        for i, row in enumerate(df):
+            f.write(row['review_body'])
+            f.write('\n')
+
+def make_mlm_data_from_ner(out_file):
+    if Path(out_file).is_file():
+        return
+    
+    tmp_out_file = 'experiments/NER/multi/ner_train_tmp.json'
+
+    df = Dataset.from_json(str(tmp_out_file))
+    with open(out_file, 'w', encoding='utf-8') as f:
+        for i, row in enumerate(df):
+            premise = ' '.join(row['tokens'])
+            f.write(premise)
+            f.write('\n')
+
+def make_mlm_data(task: Experiment):
+    out_dir = Path('experiments/MLM').joinpath(task.name)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    if task is Experiment.NLI:
+        make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('15lang_train.txt'))
+        make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('4lang_train.txt'), languages=['en', 'fr', 'de', 'es'])
+    elif task is Experiment.POS:
+        make_mlm_data_from_pos(out_dir.joinpath('4lang_train.txt'))
+    elif task is Experiment.PAWSX:
+        make_mlm_data_from_pawsx(out_dir.joinpath('4lang_train.txt'))
+    elif task is Experiment.MARC:
+        make_mlm_data_from_marc(out_dir.joinpath('4lang_train.txt'))
+    elif task is Experiment.NER:
+        make_mlm_data_from_ner(out_dir.joinpath('4lang_train.txt'))
+
     
 if __name__ == '__main__':
     # make_mlm_json(CROSS_TRAIN, CROSS_TRAIN_OUT)
@@ -69,8 +148,10 @@ if __name__ == '__main__':
     # make_mlm_json(CROSS_TEST, CROSS_TEST_OUT)
     # make_mlm_json(MULTI_TEST, MULTI_TEST_OUT)
 
-    make_mlm_json_from_raw_xnli_dev('experiments/MLM/NLI/15lang_train.txt')
-    make_mlm_json_from_raw_xnli_dev('experiments/MLM/NLI/4lang_train.txt', ['en', 'fr', 'de', 'es'])
+    for task in list(Experiment):
+        make_mlm_data(task)
+
+
             
 
                 

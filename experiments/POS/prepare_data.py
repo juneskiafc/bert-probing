@@ -14,9 +14,14 @@ def simplify_name(dataset_dirs):
                     print(f'{file.name} -> {new_name}')
                     file.rename(file.parent.joinpath(new_name))
 
-def _prepare_data(dataset_dirs, out_dir):
+def _prepare_data(dataset_dirs, out_dir, out_file=None):
     for split in ['train', 'test']:
-        out_file = out_dir.joinpath(f'pos_{split}.tsv')
+        if split not in dataset_dirs:
+            continue
+            
+        if out_file is None:
+            out_file = out_dir.joinpath(f'pos_{split}.tsv')
+        
         data = [[], []]
         print(f'making {split} data.')
 

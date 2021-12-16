@@ -173,7 +173,6 @@ def main():
     os.environ['WANDB_PROJECT'] = 'soroush'
 
     training_args.disable_tqdm = True
-    training_args.logging_steps = 100
     training_args.num_train_epochs = 6
     training_args.do_train = True
     training_args.output_dir = training_args.output_dir + f"/mlm_finetuned/huggingface/{training_args.run_name}/"
