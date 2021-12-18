@@ -3,7 +3,6 @@ from typing import List, Union, Tuple
 import argparse
 from pathlib import Path
 import torch
-from torch import nn
 from torch.utils.data import DataLoader
 
 from experiments.exp_def import (
@@ -15,7 +14,6 @@ from torch.utils.data import DataLoader
 from mt_dnn.batcher import SingleTaskDataset, Collater
 from mt_dnn.model import MTDNNModel
 from mt_dnn.inference import eval_model
-import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -54,11 +52,13 @@ def create_heatmap(
     if invert_y:
         heatmap.invert_yaxis()
 
-    heatmap.set_ylabel(xaxlabel, fontsize=fontsize)
-    heatmap.set_xlabel(yaxlabel, fontsize=fontsize)
+    heatmap.set_xlabel(xaxlabel, fontsize=fontsize)
+    heatmap.set_ylabel(yaxlabel, fontsize=fontsize)
 
     heatmap.set_yticklabels(row_labels, rotation=0, fontsize=fontsize)
     heatmap.set_xticklabels(column_labels, rotation=0, fontsize=fontsize)
+
+    heatmap.tick_params(labeltop=True, labelbottom=False, bottom=False)
 
     fig = heatmap.get_figure()
     fig.savefig(Path(out_file).with_suffix('.pdf'), bbox_inches='tight')
@@ -82,6 +82,31 @@ def build_dataset(data_path, batch_size, max_seq_len, task_def, device_id):
     )
 
     return test_data
+
+def construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int):
+    task_defs = TaskDefs(task_def_path)
+    task_name = task.name.lower()
+    assert task_name in task_defs._task_type_map
+    assert task_name in task_defs._data_type_map
+    assert task_name in task_defs._metric_meta_map
+    metric_meta = task_defs._metric_meta_map[task_name]
+
+    state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
+    
+    config = state_dict['config']
+    config['fp16'] = False
+    config['answer_opt'] = 0
+    config['adv_train'] = False
+    
+    task_def = task_defs.get_task_def(task_name)
+    task_def_list = [task_def]
+    config['task_def_list'] = task_def_list
+    config["cuda"] = True
+    config['device'] = device_id
+    del state_dict['optimizer']
+
+    model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
+    return model, metric_meta
 
 def get_acc(model, test_data, metric_meta, device_id, head_probe):
     with torch.no_grad():
@@ -120,6 +145,7 @@ def evaluate_model_against_multiple_datasets(
     for dataset in datasets:
         print(f'Evaluating on {dataset}')
         data_path = f'experiments/{task.name}/{dataset}/bert-base-multilingual-cased/{dataset}_test.json'
+
         test_data = build_dataset(
             data_path,
             task_def=TaskDefs(task_def_path).get_task_def(task.name.lower()),
@@ -127,35 +153,10 @@ def evaluate_model_against_multiple_datasets(
             batch_size=8,
             max_seq_len=512)
 
-        acc = get_acc(model, test_data, metric_meta, device_id, head_probe=False)
+        acc = get_acc(model, test_data, metric_meta, device_id, head_probe=False)[0]
         accs.append(acc)
     
     return accs
-
-def construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int):
-    task_defs = TaskDefs(task_def_path)
-    task_name = task.name.lower()
-    assert task_name in task_defs._task_type_map
-    assert task_name in task_defs._data_type_map
-    assert task_name in task_defs._metric_meta_map
-    metric_meta = task_defs._metric_meta_map[task_name]
-
-    state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
-    
-    config = state_dict['config']
-    config['fp16'] = False
-    config['answer_opt'] = 0
-    config['adv_train'] = False
-    
-    task_def = task_defs.get_task_def(task_name)
-    task_def_list = [task_def]
-    config['task_def_list'] = task_def_list
-    config["cuda"] = True
-    config['device'] = device_id
-    del state_dict['optimizer']
-
-    model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
-    return model, metric_meta
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -166,8 +167,8 @@ if __name__ == '__main__':
 
     task = Experiment[args.task.upper()]
 
-    root_ckpt_path = Path('checkpoint/')
-    encoder_type = EncoderModelType.BERT
+    results_out_file = Path(f'evaluation_results/{task.name}_4lang.csv')
+    results_out_file.parent.mkdir(parents=True, exist_ok=True)
 
     if task is Experiment.NLI:
         datasets = [
@@ -189,22 +190,34 @@ if __name__ == '__main__':
         ]
     else:
         datasets = ['en', 'fr', 'de', 'es']
+        
+    if not results_out_file.is_file():
+        root_ckpt_path = Path('checkpoint/')
+        encoder_type = EncoderModelType.BERT
+        task_def_path = f'experiments/{task.name}/multi/task_def.yaml'
+
+        model, metric_meta = construct_model(
+            args.model_ckpt,
+            task,
+            task_def_path,
+            args.device_id)
+        
+        accs = evaluate_model_against_multiple_datasets(
+            model,
+            task,
+            metric_meta,
+            datasets,
+            task_def_path,
+            device_id=args.device_id
+        )
+
+        results = pd.DataFrame(
+            accs,
+            index=datasets)
+        results.to_csv(results_out_file)
     
-    task_def_path = f'experiments/{task.name}/multi/task_def.yaml'
-    result_matrix = np.zeros(len(datasets),)
-
-    model, metric_meta = construct_model(args.model_ckpt, task, task_def_path, args.device_id)
-    accs = evaluate_model_against_multiple_datasets(
-        model,
-        task,
-        metric_meta,
-        datasets,
-        task_def_path,
-        device_id=args.device_id
-    )
-
-    results = {datasets[i]: accs[i] for i in range(len(datasets))}
-    results = pd.DataFrame(results)
+    else:
+        results = pd.read_csv(results_out_file, index_col=0)
 
     create_heatmap(
         data_df=results,
@@ -212,5 +225,6 @@ if __name__ == '__main__':
         column_labels=[task.name],
         xaxlabel='',
         yaxlabel='languages',
-        out_file=f'evaluation_results/{task.name}'
+        out_file=f'evaluation_results/{task.name}_4lang',
+        figsize=(5, 14)
     )
