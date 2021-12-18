@@ -1,0 +1,28 @@
+pos:
+  data_format: PremiseOnly
+  enable_san: false
+  split_names:
+    - test
+  labels:
+    - ADJ
+    - ADP
+    - ADV
+    - AUX
+    - CCONJ
+    - DET
+    - INTJ
+    - NOUN
+    - NUM
+    - PART
+    - PRON
+    - PROPN
+    - PUNCT
+    - SCONJ
+    - SYM
+    - VERB
+    - X
+  metric_meta:
+    - ACC
+  loss: CeCriterion
+  n_class: 17
+  task_type: Classification
