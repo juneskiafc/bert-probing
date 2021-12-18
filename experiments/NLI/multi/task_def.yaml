@@ -1,4 +1,4 @@
-multi:
+nli:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   split_names:
