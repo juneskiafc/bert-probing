@@ -72,7 +72,7 @@ def make_mlm_data_from_pos(out_file):
 
     train_data_files = [
         DATA_ROOT.joinpath('en/UD_English-EWT'),
-        DATA_ROOT.joinpath('fr/UD_French-FTB'),
+        DATA_ROOT.joinpath('fr/UD_French-GSD'),
         DATA_ROOT.joinpath('de/UD_German-GSD'),
         DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
     ]
@@ -149,7 +149,8 @@ if __name__ == '__main__':
     # make_mlm_json(MULTI_TEST, MULTI_TEST_OUT)
 
     for task in list(Experiment):
-        make_mlm_data(task)
+        if task is Experiment.POS:
+            make_mlm_data(task)
 
 
             
