@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/home/june/mt-dnn')
+from experiments.exp_def import LingualSetting
 from pathlib import Path
 import pandas as pd
 from conllu import parse_incr
@@ -16,13 +19,19 @@ def simplify_name(dataset_dirs):
 
 def _prepare_data(dataset_dirs, out_dir):
     for split in ['train', 'test']:
+        if split not in dataset_dirs:
+            continue
+            
         out_file = out_dir.joinpath(f'pos_{split}.tsv')
+        
         data = [[], []]
-        print(f'making {split} data.')
+        print(f'making {split} data: {out_file}')
 
         for data_dir in dataset_dirs[split]:
             print(f'\tprocessing {data_dir.name}')
-            with open(data_dir.joinpath(f'{split}.conllu'), 'r', encoding='utf-8') as f:
+            data_file = list(data_dir.rglob(f'*{split}.conllu'))[0]
+
+            with open(data_file, 'r', encoding='utf-8') as f:
                 for i, tokenlist in enumerate(parse_incr(f)):
                     first_word_idx = 0
                     while tokenlist[first_word_idx]['upos'] == '_':
@@ -38,50 +47,47 @@ def _prepare_data(dataset_dirs, out_dir):
         df = pd.concat(data, axis=1)
         df.to_csv(out_file, sep='\t', header=None)
 
-def prepare_data_finetune():
-    for setting in ['cross', 'multi']:
-        out_dir = DATA_ROOT.parent.joinpath(setting)
-        if out_dir.is_dir():
-            continue
-        else:
-            out_dir.mkdir(parents=True)
+def prepare_data_finetune(setting: LingualSetting):
+    out_dir = DATA_ROOT.parent.joinpath(setting.name.lower())
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-        if setting == 'multi':
-            train_datasets = [
-                DATA_ROOT.joinpath('en/UD_English-EWT'),
-                DATA_ROOT.joinpath('fr/UD_French-FTB'),
-                DATA_ROOT.joinpath('de/UD_German-GSD'),
-                DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
-            ]
-        elif setting == 'cross':
-            train_datasets = [DATA_ROOT.joinpath('en/UD_English-EWT')]
-        
-        dataset_dirs = {
-            'train': train_datasets,
-            'test': [
-                DATA_ROOT.joinpath('en/UD_English-EWT'),
-                DATA_ROOT.joinpath('fr/UD_French-FTB'),
-                DATA_ROOT.joinpath('de/UD_German-GSD'),
-                DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
-            ]
-        }
-        
-        _prepare_data(dataset_dirs, out_dir)
-
-def prepare_data_head_probe():
+    if setting is LingualSetting.MULTI:
+        train_datasets = [
+            DATA_ROOT.joinpath('en/UD_English-EWT'),
+            DATA_ROOT.joinpath('fr/UD_French-GSD'),
+            DATA_ROOT.joinpath('de/UD_German-GSD'),
+            DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+        ]
+    elif setting is LingualSetting.CROSS:
+        train_datasets = [DATA_ROOT.joinpath('en/UD_English-EWT')]
+    
     dataset_dirs = {
-    'train': [DATA_ROOT.joinpath('en/UD_English-EWT')],
-    'test': [
-        DATA_ROOT.joinpath('en/UD_English-EWT'),
-        DATA_ROOT.joinpath('fr/UD_French-FTB'),
-        DATA_ROOT.joinpath('de/UD_German-GSD'),
-        DATA_ROOT.joinpath('es/UD_Spanish-AnCora')]
+        'train': train_datasets,
+        'test': [
+            DATA_ROOT.joinpath('en/UD_English-EWT'),
+            DATA_ROOT.joinpath('fr/UD_French-GSD'),
+            DATA_ROOT.joinpath('de/UD_German-GSD'),
+            DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+        ]
     }
+    
+    _prepare_data(dataset_dirs, out_dir)
 
-    out_dir = DATA_ROOT.parent.joinpath('head_probe')
-    if not out_dir.is_dir():
+def prepare_per_language_test_data():
+    datasets = [
+        DATA_ROOT.joinpath('en/UD_English-EWT'),
+        DATA_ROOT.joinpath('fr/UD_French-GSD'),
+        DATA_ROOT.joinpath('de/UD_German-GSD'),
+        DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+    ]
+
+    for dataset in datasets:
+        dataset_dirs = {'test': [dataset]}
+        language = dataset.parent.name
+        out_dir = DATA_ROOT.parent.joinpath(language)
+        out_dir.mkdir(parents=True, exist_ok=True)
         _prepare_data(dataset_dirs, out_dir)
 
 if __name__ == '__main__':
-    prepare_data_finetune()
+    prepare_data_finetune(LingualSetting.CROSS)
             

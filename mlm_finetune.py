@@ -22,18 +22,13 @@ using a masked language modeling (MLM) loss. XLNet is fine-tuned using a permuta
 
 
 import logging
-import math
 import os
 from dataclasses import dataclass, field
-from glob import glob
 from typing import Optional
-
 import torch
-from torch.utils.data import ConcatDataset
 
 import transformers
 from transformers import (
-    CONFIG_MAPPING,
     MODEL_WITH_LM_HEAD_MAPPING,
     AutoConfig,
     AutoModelWithLMHead,
@@ -42,7 +37,6 @@ from transformers import (
     HfArgumentParser,
     LineByLineTextDataset,
     PreTrainedTokenizer,
-    TextDataset,
     Trainer,
     TrainingArguments,
     set_seed,
@@ -82,7 +76,7 @@ class ModelArguments:
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
     mtdnn_checkpoint: Optional[str] = field(
-        default=None
+        default=''
     )
 
 @dataclass
@@ -164,26 +158,16 @@ def get_dataset(
 
 
 def main():
-    # See all possible arguments in src/transformers/training_args.py
-    # or by passing the --help flag to this script.
-    # We now keep distinct sets of args, for a cleaner separation of concerns.
-
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     # env variables
-    os.environ['CUDA_VISIBLE_DEVICES'] = data_args.device_id
     os.environ['WANDB_PROJECT'] = 'soroush'
 
     training_args.disable_tqdm = True
-    training_args.run_name = f"{data_args.setting}_mlm_huggingface"
-    training_args.save_strategy = 'epoch'
-    training_args.logging_strategy = 'steps'
     training_args.num_train_epochs = 6
     training_args.do_train = True
-    training_args.output_dir = training_args.output_dir + "/mlm_finetuned/huggingface/" + data_args.setting
-    mtdnn_checkpoint = f'checkpoint/{data_args.setting}/model_5.pt'
-    data_args.train_data_file = f'experiments/MLM/{data_args.setting}_train.txt'
+    training_args.output_dir = training_args.output_dir + f"/mlm_finetuned/huggingface/{training_args.run_name}/"
 
     if data_args.eval_data_file is None and training_args.do_eval:
         raise ValueError(
@@ -226,17 +210,17 @@ def main():
 
     # Load pretrained model and tokenizer
     config = AutoConfig.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained('bert-base-multilingual-cased', cache_dir=model_args.cache_dir)
 
     model = AutoModelWithLMHead.from_pretrained(
         model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
+        from_tf=False,
         config=config,
         cache_dir=model_args.cache_dir,
     )
-
-    if mtdnn_checkpoint:
-        mtdnn = torch.load(mtdnn_checkpoint, map_location=f'cuda:{data_args.device_id}')['state']
+    
+    if model_args.mtdnn_checkpoint != '':
+        mtdnn = torch.load(model_args.mtdnn_checkpoint, map_location=f'cuda:{data_args.device_id}')['state']
         # these are leftovers from NLI finetuning, get rid
         for param in [
             'bert.pooler.dense.weight',
@@ -258,13 +242,13 @@ def main():
             "cls.predictions.decoder.bias"]:
             mtdnn[param] = model.state_dict()[param]
 
-    # freeze everything except MLM head
-    model.load_state_dict(mtdnn, strict=True)
-    for n, p in model.named_parameters():
-        if 'cls' not in n:
-            p.requires_grad = False
+        # freeze everything except MLM head
+        model.load_state_dict(mtdnn, strict=True)
+        for n, p in model.named_parameters():
+            if 'cls' not in n:
+                p.requires_grad = False
 
-    model.resize_token_embeddings(len(tokenizer))
+        model.resize_token_embeddings(len(tokenizer))
 
     # set max seq len = max for BERT
     if data_args.block_size <= 0:
@@ -275,11 +259,16 @@ def main():
     # Get datasets
     # only train
     train_dataset = (
-        get_dataset(data_args, tokenizer=tokenizer, cache_dir=model_args.cache_dir) if training_args.do_train else None
+        get_dataset(
+            data_args,
+            tokenizer,
+            model_args.cache_dir) if training_args.do_train else None
     )
 
     data_collator = DataCollatorForLanguageModeling(
-        tokenizer=tokenizer, mlm=data_args.mlm, mlm_probability=data_args.mlm_probability
+        tokenizer=tokenizer,
+        mlm=data_args.mlm,
+        mlm_probability=data_args.mlm_probability
     )
 
     # Initialize our Trainer

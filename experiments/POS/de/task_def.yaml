@@ -2,7 +2,6 @@ pos:
   data_format: PremiseOnly
   enable_san: false
   split_names:
-    - train
     - test
   labels:
     - ADJ

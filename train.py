@@ -29,8 +29,30 @@ from train_utils import (
 import wandb
 
 def model_config(parser):
-    parser.add_argument('--update_bert_opt', default=0, type=int)
+    # SET THESE
+    ##############
     parser.add_argument('--multi_gpu_on', action='store_true')
+    parser.add_argument('--devices', nargs='+')
+
+    # head probing
+    parser.add_argument('--head_probe', action='store_true')
+    parser.add_argument('--head_probe_layer', type=int)
+    parser.add_argument('--head_probe_idx', type=int)
+    parser.add_argument('--head_probe_n_classes', type=int)
+
+    # kqv probing
+    parser.add_argument('--kqv_probing', action='store_true')
+
+    # mlm scoring
+    parser.add_argument('--mlm_scoring', action='store_true')
+
+    # mlm finetuning, DEPRECATED
+    parser.add_argument('--mlm_finetune', action='store_true')
+    ##############
+
+    # DON"T NEED THESE
+    ##############
+    parser.add_argument('--update_bert_opt', default=0, type=int)
     parser.add_argument('--mem_cum_type', type=str, default='simple',
                         help='bilinear/simple/defualt')
     parser.add_argument('--answer_num_turn', type=int, default=5)
@@ -73,52 +95,54 @@ def model_config(parser):
     parser.add_argument('--bin_grow_ratio', type=int, default=0.5)
 
     # dist training
-    parser.add_argument('--devices', nargs='+')
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
     parser.add_argument("--world_size", type=int, default=1, help="For distributed training: world size")
     parser.add_argument("--master_addr", type=str, default="localhost")
     parser.add_argument("--master_port", type=str, default="6600")
     parser.add_argument("--backend", type=str, default="nccl")
-
-    # head probing
-    parser.add_argument('--head_probe', action='store_true')
-    parser.add_argument('--head_probe_layer', type=int)
-    parser.add_argument('--head_probe_idx', type=int)
-    parser.add_argument('--head_probe_n_classes', type=int)
-
-    # kqv probing
-    parser.add_argument('--kqv_probing', action='store_true')
-
-    # mlm scoring
-    parser.add_argument('--mlm_scoring', action='store_true')
-
-    # mlm finetuning
-    parser.add_argument('--mlm_finetune', action='store_true')
+    ##############
 
     return parser
 
 
 def data_config(parser):
-    parser.add_argument('--exp_name', default='', help='experiment name') # THIS
-    parser.add_argument('--dataset_name', default='', help='dataset name') # THIS
+    # SET THESE
+    ############
+    parser.add_argument('--exp_name', default='', help='experiment name')
+    parser.add_argument('--dataset_name', default='', help='dataset name')
+    parser.add_argument('--wandb', action='store_true')
+    ############
+
+    # DON'T NEED THESE
+    ############
     parser.add_argument('--log_file', default='mt-dnn.log', help='path for log file.')
-    parser.add_argument('--wandb', action='store_true') # THIS
     parser.add_argument('--data_sort_on', action='store_true')
     parser.add_argument('--mkd-opt', type=int, default=0, 
                         help=">0 to turn on knowledge distillation, requires 'softlabel' column in input data")
     parser.add_argument('--do_padding', action='store_true')
+    ############
     return parser
 
 
 def train_config(parser):
-    parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
-                        help='whether to use GPU acceleration.')
-    parser.add_argument('--log_per_updates', type=int, default=1)
-    parser.add_argument('--save_per_updates', type=int, default=10000)
-    parser.add_argument('--save_per_updates_on', action='store_true')
+    # SET THESE
+    ############
     parser.add_argument('--epochs', type=int, default=6)
     parser.add_argument('--batch_size', type=int, default=8)
-    parser.add_argument('--batch_size_eval', type=int, default=8)
+
+    # loading
+    parser.add_argument("--model_ckpt", default='', type=str)
+    parser.add_argument("--resume", action='store_true')
+    parser.add_argument('--huggingface_ckpt', action='store_true')
+    ############
+
+    # DON'T NEED THESE
+    ############
+    parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available(),
+                        help='whether to use GPU acceleration.')
+    parser.add_argument('--log_per_updates', type=int, default=100)
+    parser.add_argument('--save_per_updates', type=int, default=10000)
+    parser.add_argument('--save_per_updates_on', action='store_true')
     parser.add_argument('--optimizer', default='adamax',
                         help='supported optimizer: adamax, sgd, adadelta, adam')
     parser.add_argument('--grad_clipping', type=float, default=0)
@@ -134,10 +158,6 @@ def train_config(parser):
     parser.add_argument('--dropout_p', type=float, default=0.1)
     parser.add_argument('--dropout_w', type=float, default=0.000)
     parser.add_argument('--bert_dropout_p', type=float, default=0.1)
-
-    # loading
-    parser.add_argument("--model_ckpt", default='', type=str)
-    parser.add_argument("--resume", action='store_true')
 
     # scheduler
     parser.add_argument('--have_lr_scheduler', dest='have_lr_scheduler', action='store_false')
@@ -173,6 +193,7 @@ def train_config(parser):
 
     # transformer cache
     parser.add_argument("--transformer_cache", default='.cache', type=str)
+    ############
 
     return parser
 
@@ -308,16 +329,21 @@ def main():
     # if resuming, load state dict, and get init epoch and step.
     if args.resume:
         assert args.model_ckpt != '' and Path(args.model_ckpt).is_file(), args.model_ckpt
-        print_message(logger, f'loading model from {args.model_ckpt}')
+        print_message(logger, f'loading model from {args.model_ckpt}')           
         state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
 
-        split_model_name = args.model_ckpt.split("/")[-1].split("_")
-        if len(split_model_name) > 2:
-            init_epoch_idx = int(split_model_name[1]) + 1
-            init_global_step = int(split_model_name[2].split(".")[0]) + 1
+        if not args.huggingface_ckpt:
+            split_model_name = args.model_ckpt.split("/")[-1].split("_")
+            if len(split_model_name) > 2:
+                init_epoch_idx = int(split_model_name[1]) + 1
+                init_global_step = int(split_model_name[2].split(".")[0]) + 1
+            else:
+                init_epoch_idx = int(split_model_name[1].split(".")[0]) + 1
+                init_global_step = 0
         else:
-            init_epoch_idx = int(split_model_name[1].split(".")[0]) + 1
+            init_epoch_idx = 0
             init_global_step = 0
+    
     else:
         state_dict = None
         init_epoch_idx = 0
@@ -327,7 +353,39 @@ def main():
         opt,
         devices=args.devices,
         num_train_step=num_all_batches)
+    
+    if not (args.kqv_probing or args.mlm_scoring or args.mlm_finetune or args.head_probe):
+        if state_dict is not None and args.resume:
+            if args.huggingface_ckpt:
+                params_to_remove = [
+                    "cls.predictions.bias",
+                    "cls.predictions.transform.dense.weight",
+                    "cls.predictions.transform.dense.bias",
+                    "cls.predictions.transform.LayerNorm.weight",
+                    "cls.predictions.transform.LayerNorm.bias",
+                    "cls.predictions.decoder.weight",
+                    "cls.predictions.decoder.bias"
+                ]
+                params_to_add = [
+                    "bert.pooler.dense.weight",
+                    "bert.pooler.dense.bias",
+                    "scoring_list.0.weight",
+                    "scoring_list.0.bias",
+                    "pooler.dense.weight",
+                    "pooler.dense.bias"
+                ]
 
+                for param_name in params_to_remove:
+                    del state_dict[param_name]
+                
+                _init_state_dict = model.network.state_dict()
+                for param_name in params_to_add:
+                    state_dict[param_name] = _init_state_dict[param_name]
+                
+                state_dict = {'state': state_dict}
+
+            model.load_state_dict(state_dict)
+    
     if args.kqv_probing:
         from examine_kqv import save_all_kqv
         task_name = args.train_datasets[0]

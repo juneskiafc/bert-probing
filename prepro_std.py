@@ -1,8 +1,7 @@
 # coding=utf-8
 # Copyright (c) Microsoft. All rights reserved.
-import yaml
 import os
-import numpy as np
+from pathlib import Path
 import argparse
 import json
 import sys
@@ -154,41 +153,29 @@ def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
             data, dump_path, max_seq_len, tokenizer)
     elif data_format == DataFormat.Seqence:
         build_data_sequence(data, dump_path, max_seq_len, tokenizer, lab_dict)
-    elif data_format == DataFormat.MRC:
-        pass
-        # build_data_mrc(data, dump_path, max_seq_len, tokenizer)
     else:
         raise ValueError(data_format)
 
-def route_by_dataset(args):
-    prepare_data(args, args.dataset)
+def prepare_data(args):
+    root = Path('experiments').joinpath(args.dataset)
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description='Preprocessing GLUE/SNLI/SciTail dataset.')
-    parser.add_argument('--model', type=str, default='bert-base-multilingual-cased',
-                        help='support all BERT and ROBERTA family supported by HuggingFace Transformers')
-    parser.add_argument('--do_lower_case', action='store_true')
-    parser.add_argument('--do_padding', action='store_true')
-    parser.add_argument('--root_dir', type=str, default='data/canonical_data')
-    parser.add_argument('--head_probe', action='store_true')
-    parser.add_argument('--dataset', type=str)
+    mt_dnn_root = root.joinpath(args.model)
+    mt_dnn_root.mkdir(parents=True, exist_ok=True)
+    task_defs = TaskDefs(root.joinpath('task_def.yaml'))
 
-    args = parser.parse_args()
-    return args
+    tokenizer = AutoTokenizer.from_pretrained(args.model)
 
-def build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer):
     for task in task_defs.get_task_names():
         task_def = task_defs.get_task_def(task)
-        logger.info("Task %s" % task)
+        
         for split_name in task_def.split_names:
-            file_path = os.path.join(root, "%s_%s.tsv" % (task, split_name))
-            if not os.path.exists(file_path):
-                logger.warning(f"File {file_path} doesnot exit")
-                sys.exit(1)
+            file_path = root.joinpath(f"{task}_{split_name}.tsv")
+            if not file_path.is_file():
+                raise FileNotFoundError(file_path)
+                
             rows = load_data(file_path, task_def)
-            dump_path = os.path.join(mt_dnn_root, "%s_%s.json" % (task, split_name))
-            logger.info(dump_path)
+            dump_path = mt_dnn_root.joinpath(f"{task}_{split_name}.json")
+
             build_data(
                 rows,
                 dump_path,
@@ -196,27 +183,14 @@ def build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer):
                 task_def.data_type,
                 lab_dict=task_def.label_vocab)
 
-def prepare_data(args, task_name):
-    def _build_huggingface_data_from_root(root):
-        task_def = os.path.join(root, 'task_def.yaml')
-
-        mt_dnn_root = os.path.join(root, args.model)
-        if not os.path.isdir(mt_dnn_root):
-            os.makedirs(mt_dnn_root)
-        
-        task_defs = TaskDefs(task_def)
-        build_data_from_task_defs(task_defs, root, mt_dnn_root, tokenizer)
-
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
-    if args.head_probe:
-        root = f'/home/june/mt-dnn/experiments/{task_name}/head_probe'
-        _build_huggingface_data_from_root(root)
-    
-    else:
-        for setting in ['cross', 'multi']:
-            root = f'/home/june/mt-dnn/experiments/{task_name}/{setting}'
-            _build_huggingface_data_from_root(root)
-
 if __name__ == '__main__':
-    args = parse_args()
-    route_by_dataset(args)
+    parser = argparse.ArgumentParser(
+        description='Preprocessing GLUE/SNLI/SciTail dataset.')
+    parser.add_argument('--model', type=str, default='bert-base-multilingual-cased',
+                        help='support all BERT and ROBERTA family supported by HuggingFace Transformers')
+    parser.add_argument('--do_lower_case', action='store_true')
+    parser.add_argument('--do_padding', action='store_true')
+    parser.add_argument('--dataset', type=str)
+
+    args = parser.parse_args()
+    prepare_data(args)
