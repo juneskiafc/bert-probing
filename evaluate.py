@@ -144,7 +144,7 @@ def evaluate_model_against_multiple_datasets(
     
     for dataset in datasets:
         print(f'Evaluating on {dataset}')
-        data_path = f'experiments/{task.name}/{dataset}/bert-base-multilingual-cased/{dataset}_test.json'
+        data_path = f'experiments/{task.name}/{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json'
 
         test_data = build_dataset(
             data_path,
@@ -167,10 +167,17 @@ if __name__ == '__main__':
 
     task = Experiment[args.task.upper()]
 
-    results_out_file = Path(f'evaluation_results/{task.name}_4lang.csv')
+    results_out_file = Path(f'evaluation_results/{task.name}_15lang.csv')
     results_out_file.parent.mkdir(parents=True, exist_ok=True)
 
     if task is Experiment.NLI:
+        # datasets = [
+        #     'en',
+        #     'es',
+        #     'de',
+        #     'fr',
+        #     'combined'
+        # ]
         datasets = [
             'ar',
             'bg',
@@ -186,15 +193,16 @@ if __name__ == '__main__':
             'ur',
             'vi',
             'zh',
-            'en' 
+            'en',
+            'combined'
         ]
     else:
-        datasets = ['en', 'fr', 'de', 'es']
+        datasets = ['en', 'fr', 'de', 'es', 'multi']
         
     if not results_out_file.is_file():
         root_ckpt_path = Path('checkpoint/')
         encoder_type = EncoderModelType.BERT
-        task_def_path = f'experiments/{task.name}/multi/task_def.yaml'
+        task_def_path = f'experiments/{task.name}/{datasets[0]}/task_def.yaml'
 
         model, metric_meta = construct_model(
             args.model_ckpt,
@@ -225,6 +233,6 @@ if __name__ == '__main__':
         column_labels=[task.name],
         xaxlabel='',
         yaxlabel='languages',
-        out_file=f'evaluation_results/{task.name}_4lang',
+        out_file=f'evaluation_results/{task.name}_15lang',
         figsize=(5, 14)
     )

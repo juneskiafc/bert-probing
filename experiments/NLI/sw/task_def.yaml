@@ -1,4 +1,4 @@
-sw:
+nli:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:

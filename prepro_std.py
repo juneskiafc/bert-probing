@@ -1,10 +1,8 @@
 # coding=utf-8
 # Copyright (c) Microsoft. All rights reserved.
-import os
 from pathlib import Path
 import argparse
 import json
-import sys
 from data_utils import load_data
 from data_utils.task_def import TaskType, DataFormat
 from data_utils.log_wrapper import create_logger
@@ -169,7 +167,9 @@ def prepare_data(args):
         task_def = task_defs.get_task_def(task)
         
         for split_name in task_def.split_names:
-            file_path = root.joinpath(f"{task}_{split_name}.tsv")
+            dataset_name = args.dataset.split("/")[-1]
+            file_path = root.joinpath(f"{dataset_name}_{split_name}.tsv")
+            # file_path = root.joinpath(f"{task}_{split_name}.tsv")
             if not file_path.is_file():
                 raise FileNotFoundError(file_path)
                 
@@ -184,6 +184,8 @@ def prepare_data(args):
                 lab_dict=task_def.label_vocab)
 
 if __name__ == '__main__':
+    import shutil
+
     parser = argparse.ArgumentParser(
         description='Preprocessing GLUE/SNLI/SciTail dataset.')
     parser.add_argument('--model', type=str, default='bert-base-multilingual-cased',
@@ -193,4 +195,22 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str)
 
     args = parser.parse_args()
+
+    # datasets = [
+    #         'ar',
+    #         'bg',
+    #         'el',
+    #         'hi',
+    #         'ru',
+    #         'sw',
+    #         'th',
+    #         'tr',
+    #         'ur',
+    #         'vi',
+    #         'zh',
+    #     ]
+    # for data in datasets:
+    #     # shutil.copy('experiments/NLI/de/task_def.yaml', f'experiments/NLI/{data}/task_def.yaml')
+    #     args.dataset = f'NLI/combined'
+
     prepare_data(args)

@@ -18,7 +18,22 @@ CROSS_TEST_TMP = DATA_PATH.joinpath('cross/cross_test_tmp.tsv')
 MULTI_TRAIN = DATA_PATH.joinpath('multi/multi_train.tsv')
 MULTI_TEST = DATA_PATH.joinpath('multi/multi_test.tsv')
 
+def combine_datasets(in_files, out_file):
+    Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+
+    with open(out_file, 'w') as fw:
+        fieldnames = ['id', 'label', 'premise', 'hypothesis']
+        writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
+
+        for in_file in in_files:
+            with open(in_file, 'r') as fr:
+                reader =csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
+                for row in reader:
+                    writer.writerow(row)
+
 def raw_tsv_to_mtdnn_format(in_files, out_file, language=None, excl_langs=None):
+    Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+
     with open(out_file, 'w') as fw:
         fieldnames = ['id', 'label', 'premise', 'hypothesis']
         writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
@@ -102,3 +117,22 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
 
 if __name__ == '__main__':
     pass
+    # langs = [
+    #         'ar',
+    #         'bg',
+    #         'el',
+    #         'hi',
+    #         'ru',
+    #         'sw',
+    #         'th',
+    #         'tr',
+    #         'ur',
+    #         'vi',
+    #         'zh',
+    #     ]
+
+    # datasets = [f'experiments/NLI/{lang}/{lang}_test.tsv' for lang in langs]
+    # combine_datasets(datasets, 'experiments/NLI/combined/combined_test.tsv')
+
+    # for lang in datasets:
+    #     raw_tsv_to_mtdnn_format([XNLI_TEST], f'experiments/NLI/{lang}/{lang}_test.tsv', language=lang)

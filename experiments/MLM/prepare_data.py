@@ -44,12 +44,15 @@ def make_mlm_json(in_file, out_file):
 
     return out_file
 
-def make_mlm_data_from_raw_xnli_dev(out_file, languages=None):
+def make_mlm_data_from_raw_xnli(out_file, languages=None, split='train'):
     if Path(out_file).is_file():
         return
     
     raw_nli_data_path = Path('./experiments/NLI/data_raw')
-    xnli_dev_path = raw_nli_data_path.joinpath('xnli.dev.jsonl')
+    if split == 'train':
+        xnli_dev_path = raw_nli_data_path.joinpath('xnli.dev.jsonl')
+    else:
+        xnli_dev_path = raw_nli_data_path.joinpath('xnli.test.jsonl')
 
     Path(out_file).parent.mkdir(parents=True, exist_ok=True)
 
@@ -67,7 +70,7 @@ def make_mlm_data_from_raw_xnli_dev(out_file, languages=None):
                         fw.write(sent)
                         fw.write("\n")
 
-def make_mlm_data_from_pos(out_file):
+def make_mlm_data_from_pos(out_file, split):
     DATA_ROOT = Path('/home/june/mt-dnn/experiments/POS/data')
 
     train_data_files = [
@@ -79,16 +82,16 @@ def make_mlm_data_from_pos(out_file):
     
     with open(out_file, 'w', encoding='utf-8') as fw:
         for data_dir in train_data_files:
-            with open(data_dir.joinpath(f'train.conllu'), 'r', encoding='utf-8') as f:
+            with open(data_dir.joinpath(f'{split}.conllu'), 'r', encoding='utf-8') as f:
                 for i, tokenlist in enumerate(parse_incr(f)):
                     fw.write(tokenlist.metadata['text'])
                     fw.write('\n')
 
-def make_mlm_data_from_pawsx(out_file):
+def make_mlm_data_from_pawsx(out_file, split):
     if Path(out_file).is_file():
         return
 
-    tmp_out_file = 'experiments/PAWSX/multi/pawsx_train_tmp.json'
+    tmp_out_file = f'experiments/PAWSX/multi/pawsx_{split}_tmp.json'
 
     df = Dataset.from_json(str(tmp_out_file))
     with open(out_file, 'w', encoding='utf-8') as f:
@@ -100,11 +103,11 @@ def make_mlm_data_from_pawsx(out_file):
                 f.write(sent)
                 f.write('\n')
 
-def make_mlm_data_from_marc(out_file):
+def make_mlm_data_from_marc(out_file, split):
     if Path(out_file).is_file():
         return
 
-    tmp_out_file = 'experiments/MARC/multi/marc_train_tmp.json'
+    tmp_out_file = f'experiments/MARC/multi/marc_{split}_tmp.json'
 
     df = Dataset.from_json(str(tmp_out_file))
     with open(out_file, 'w', encoding='utf-8') as f:
@@ -112,11 +115,11 @@ def make_mlm_data_from_marc(out_file):
             f.write(row['review_body'])
             f.write('\n')
 
-def make_mlm_data_from_ner(out_file):
+def make_mlm_data_from_ner(out_file, split):
     if Path(out_file).is_file():
         return
     
-    tmp_out_file = 'experiments/NER/multi/ner_train_tmp.json'
+    tmp_out_file = f'experiments/NER/multi/ner_{split}_tmp.json'
 
     df = Dataset.from_json(str(tmp_out_file))
     with open(out_file, 'w', encoding='utf-8') as f:
@@ -129,25 +132,21 @@ def make_mlm_data(task: Experiment):
     out_dir = Path('experiments/MLM').joinpath(task.name)
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    if task is Experiment.NLI:
-        make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('15lang_train.txt'))
-        make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('4lang_train.txt'), languages=['en', 'fr', 'de', 'es'])
-    elif task is Experiment.POS:
-        make_mlm_data_from_pos(out_dir.joinpath('4lang_train.txt'))
-    elif task is Experiment.PAWSX:
-        make_mlm_data_from_pawsx(out_dir.joinpath('4lang_train.txt'))
-    elif task is Experiment.MARC:
-        make_mlm_data_from_marc(out_dir.joinpath('4lang_train.txt'))
-    elif task is Experiment.NER:
-        make_mlm_data_from_ner(out_dir.joinpath('4lang_train.txt'))
+    for split in ['test']:
+        if task is Experiment.NLI:
+            make_mlm_data_from_raw_xnli(out_dir.joinpath(f'15lang_{split}.txt'), split=split)
+            make_mlm_data_from_raw_xnli(out_dir.joinpath(f'4lang_{split}.txt'), languages=['en', 'fr', 'de', 'es'], split=split)
+        elif task is Experiment.POS:
+            make_mlm_data_from_pos(out_dir.joinpath(f'4lang_{split}.txt'), split)
+        elif task is Experiment.PAWSX:
+            make_mlm_data_from_pawsx(out_dir.joinpath(f'4lang_{split}.txt'), split)
+        elif task is Experiment.MARC:
+            make_mlm_data_from_marc(out_dir.joinpath(f'4lang_{split}.txt'), split)
+        elif task is Experiment.NER:
+            make_mlm_data_from_ner(out_dir.joinpath(f'4lang_{split}.txt'), split)
 
     
 if __name__ == '__main__':
-    # make_mlm_json(CROSS_TRAIN, CROSS_TRAIN_OUT)
-    # make_mlm_json(MULTI_TRAIN, MULTI_TRAIN_OUT)
-    # make_mlm_json(CROSS_TEST, CROSS_TEST_OUT)
-    # make_mlm_json(MULTI_TEST, MULTI_TEST_OUT)
-
     for task in list(Experiment):
         make_mlm_data(task)
 
