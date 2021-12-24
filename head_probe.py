@@ -122,4 +122,5 @@ if __name__ == '__main__':
                 probe_heads(setting=setting,            
                             finetuned_task=finetuned_task,
                             task=task,
-                            devices=devices)
+                            devices=devices,
+                            models_per_gpu=args.models_per_gpu)

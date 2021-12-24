@@ -432,8 +432,6 @@ def main():
 
     if args.head_probe:
         print_message(logger, f'attached head probe at layer #{args.head_probe_layer+1}, head #{args.head_probe_idx+1}')
-
-        opt['head_probe'] = True
         opt['head_idx_to_probe'] = (args.head_probe_layer, args.head_probe_idx)
 
         # freeze all params
