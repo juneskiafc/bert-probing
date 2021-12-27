@@ -13,6 +13,7 @@ wandb/
 *.conllu
 *.jsonl
 *.md
+!README.md
 *.xml
 *.tgz
 *.zip
