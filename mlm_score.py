@@ -122,6 +122,7 @@ def construct_dataset(data_file, tokenizer):
 
 def mlm_score(
     state_dict,
+    is_huggingface_ckpt,
     data_file,
     scores_out_file,
     device_id):
@@ -141,7 +142,7 @@ def mlm_score(
         model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased')
 
         if state_dict is not None:
-            if "cls.predictions.bias" not in state_dict:
+            if not is_huggingface_ckpt and "cls.predictions.bias" not in state_dict:
                 og_state_dict = model.state_dict()
                 for param in [
                         "cls.predictions.bias",
@@ -189,6 +190,7 @@ def main(
     task,
     model_name,
     model_ckpt,
+    is_huggingface_ckpt,
     datasets,
     do_individual=True,
     do_combined=True,
@@ -218,20 +220,21 @@ def main(
         # load model.
         print(f'loading ckpt from {model_ckpt}.')
         state_dict = torch.load(model_ckpt)
-        if 'optimizer' in state_dict:
-            del state_dict['optimizer']
-            del state_dict['config']
-            state_dict = state_dict['state']
+        if not is_huggingface_ckpt:
+            if 'optimizer' in state_dict:
+                del state_dict['optimizer']
+                del state_dict['config']
+                state_dict = state_dict['state']
 
-            for param in [
-                "scoring_list.0.weight",
-                "scoring_list.0.bias",
-                "pooler.dense.weight",
-                "pooler.dense.bias",
-                "bert.pooler.dense.weight",
-                "bert.pooler.dense.bias"
-            ]:
-                del state_dict[param]
+                for param in [
+                    "scoring_list.0.weight",
+                    "scoring_list.0.bias",
+                    "pooler.dense.weight",
+                    "pooler.dense.bias",
+                    "bert.pooler.dense.weight",
+                    "bert.pooler.dense.bias"
+                ]:
+                    del state_dict[param]
 
         if do_individual:
             for i, dataset in enumerate(datasets):
@@ -243,6 +246,7 @@ def main(
                 start = time()
                 _, pppl, nwords = mlm_score(
                     state_dict,
+                    is_huggingface_ckpt,
                     data_file,
                     scores_for_dataset_out_file,
                     device_id)
@@ -314,6 +318,7 @@ def combine_split_scores(dataset):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--model_ckpt', type=str)
+    parser.add_argument('--huggingface_ckpt', action='store_true')
     parser.add_argument('--task', type=str)
     parser.add_argument('--device_id', type=int, default=0)
     args = parser.parse_args()
@@ -340,7 +345,14 @@ if __name__ == '__main__':
             'zh',
             'en'
         ]
-        main(task, 'NLI_all-lang', checkpoint_dir.joinpath('15lang/model_5_294528.pt'), datasets, device_id=args.device_id)
+        main(
+            task,
+            'NLI_all-lang',
+            checkpoint_dir.joinpath('15lang/model_5_294528.pt'),
+            args.huggingface_ckpt,
+            datasets,
+            device_id=args.device_id
+        )
 
         datasets = [
             'de',
@@ -348,8 +360,22 @@ if __name__ == '__main__':
             'fr',
             'en'
         ]
-        main(task, 'NLI_EN-FR-DE-ES', checkpoint_dir.joinpath('4lang/model_5_294528.pt'), datasets, device_id=args.device_id)
+        main(
+            task, 
+            'NLI_EN-FR-DE-ES',
+            checkpoint_dir.joinpath('4lang/model_5_294528.pt'),
+            args.huggingface_ckpt,
+            datasets,
+            device_id=args.device_id
+        )
         
     else: 
         model_name = f'{task.name}_EN-FR-DE-ES'
-        main(task, model_name, args.model_ckpt, ['en', 'es', 'fr', 'de'])
+        main(
+            task,
+            model_name,
+            args.model_ckpt,
+            args.huggingface_ckpt,
+            ['en', 'es', 'fr', 'de'],
+            device_id=args.device_id
+        )
