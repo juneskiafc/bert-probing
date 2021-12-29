@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from data_utils.task_def import TaskType
 from module.san import SANClassifier
 
 TASK_REGISTRY = {}

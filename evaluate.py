@@ -108,7 +108,7 @@ def construct_model(checkpoint: str, task: Experiment, task_def_path: str, devic
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
 
-def get_acc(model, test_data, metric_meta, device_id, head_probe):
+def get_metric(model, test_data, metric_meta, device_id, head_probe):
     with torch.no_grad():
         model.network.eval()
         model.network.to(device_id)
@@ -130,7 +130,13 @@ def get_acc(model, test_data, metric_meta, device_id, head_probe):
     preds_df = pd.Series(predictions)
     golds_df = pd.Series(golds)
     id_df = pd.Series(ids)
-    return metrics['ACC'], preds_df, golds_df, id_df
+
+    if 'ACC' in metrics:
+        metric = metrics['ACC']
+    elif 'F1MAC' in metrics:
+        metric = metrics['F1MAC']
+    
+    return metric, preds_df, golds_df, id_df
 
 def evaluate_model_against_multiple_datasets(
     model: MTDNNModel,
@@ -140,7 +146,7 @@ def evaluate_model_against_multiple_datasets(
     task_def_path: str,
     device_id: int):
 
-    accs = []
+    metrics = []
     
     for dataset in datasets:
         print(f'Evaluating on {dataset}')
@@ -153,10 +159,10 @@ def evaluate_model_against_multiple_datasets(
             batch_size=8,
             max_seq_len=512)
 
-        acc = get_acc(model, test_data, metric_meta, device_id, head_probe=False)[0]
-        accs.append(acc)
+        metric = get_metric(model, test_data, metric_meta, device_id, head_probe=False)[0]
+        metrics.append(metric)
     
-    return accs
+    return metrics
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -167,7 +173,7 @@ if __name__ == '__main__':
 
     task = Experiment[args.task.upper()]
 
-    results_out_file = Path(f'evaluation_results/{task.name}_15lang.csv')
+    results_out_file = Path(f'evaluation_results/{task.name}.csv')
     results_out_file.parent.mkdir(parents=True, exist_ok=True)
 
     if task is Experiment.NLI:
@@ -176,7 +182,7 @@ if __name__ == '__main__':
         #     'es',
         #     'de',
         #     'fr',
-        #     'combined'
+        #     '4lang_combined'
         # ]
         datasets = [
             'ar',
@@ -219,9 +225,7 @@ if __name__ == '__main__':
             device_id=args.device_id
         )
 
-        results = pd.DataFrame(
-            accs,
-            index=datasets)
+        results = pd.DataFrame(accs,index=datasets)
         results.to_csv(results_out_file)
     
     else:
@@ -233,6 +237,6 @@ if __name__ == '__main__':
         column_labels=[task.name],
         xaxlabel='',
         yaxlabel='languages',
-        out_file=f'evaluation_results/{task.name}_15lang',
+        out_file=f'evaluation_results/{task.name}',
         figsize=(5, 14)
     )

@@ -168,8 +168,7 @@ def prepare_data(args):
         
         for split_name in task_def.split_names:
             dataset_name = args.dataset.split("/")[-1]
-            file_path = root.joinpath(f"{dataset_name}_{split_name}.tsv")
-            # file_path = root.joinpath(f"{task}_{split_name}.tsv")
+            file_path = root.joinpath(f"{task}_{split_name}.tsv")
             if not file_path.is_file():
                 raise FileNotFoundError(file_path)
                 

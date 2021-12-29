@@ -115,24 +115,36 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
         else:
             raw_tsv_to_mtdnn_format(datasets, out_file, language=language)
 
+def make_evaluation_data():
+    langs = [
+            'ar',
+            'bg',
+            'de',
+            'el',
+            'en',
+            'es',
+            'fr',
+            'hi',
+            'ru',
+            'sw',
+            'th',
+            'tr',
+            'ur',
+            'vi',
+            'zh',
+        ]
+
+    for lang in langs:
+        print(f'making eval data for {lang}.')
+        raw_tsv_to_mtdnn_format([XNLI_TEST], f'experiments/NLI/{lang}/nli_test.tsv', language=lang)
+
+    print('combining 15 langs.')
+    datasets = [f'experiments/NLI/{lang}/nli_test.tsv' for lang in langs]
+    combine_datasets(datasets, 'experiments/NLI/combined/nli_test.tsv')
+
+    print('combining en/es/fr/de.')
+    fourlang_datasets = [f'experiments/NLI/{lang}/nli_test.tsv' for lang in langs if lang in ['en', 'fr', 'de', 'es']]
+    combine_datasets(fourlang_datasets, 'experiments/NLI/4lang_combined/nli_test.tsv')
+
 if __name__ == '__main__':
-    pass
-    # langs = [
-    #         'ar',
-    #         'bg',
-    #         'el',
-    #         'hi',
-    #         'ru',
-    #         'sw',
-    #         'th',
-    #         'tr',
-    #         'ur',
-    #         'vi',
-    #         'zh',
-    #     ]
-
-    # datasets = [f'experiments/NLI/{lang}/{lang}_test.tsv' for lang in langs]
-    # combine_datasets(datasets, 'experiments/NLI/combined/combined_test.tsv')
-
-    # for lang in datasets:
-    #     raw_tsv_to_mtdnn_format([XNLI_TEST], f'experiments/NLI/{lang}/{lang}_test.tsv', language=lang)
+    make_evaluation_data()

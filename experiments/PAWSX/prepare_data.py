@@ -8,6 +8,11 @@ def _prepare_data(train_langs, test_langs, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for split in ['train', 'test']:
+        if split == 'train' and train_langs is None:
+            continue
+        elif split == 'test' and test_langs is None:
+            continue
+
         out_file = out_dir.joinpath(f'pawsx_{split}_tmp.json')
         final_out_file = out_dir.joinpath(f'pawsx_{split}.tsv')
 
@@ -50,8 +55,14 @@ def prepare_finetune_data():
 
         _prepare_data(train_langs, test_langs, out_dir)
 
+def prepare_per_language_data():
+    langs = ['en', 'fr', 'de', 'es']
+    for lang in langs:
+        out_dir = Path(f'experiments/PAWSX/{lang}')
+        _prepare_data(None, [lang], out_dir)
+
 if __name__ == '__main__':
-    prepare_finetune_data()
+    prepare_per_language_data()
 
 
 

@@ -89,5 +89,5 @@ def prepare_per_language_test_data():
         _prepare_data(dataset_dirs, out_dir)
 
 if __name__ == '__main__':
-    prepare_data_finetune(LingualSetting.CROSS)
+    prepare_per_language_test_data()
             

@@ -1,27 +1,27 @@
-from typing import Tuple
-import pandas as pd
+from typing import List, Tuple
+
+from time import time
+from argparse import ArgumentParser 
+from pathlib import Path
 from collections import Counter
+import pickle
+from math import exp
+import json
+from matplotlib import pyplot as plt 
+
+import seaborn as sns
+import pandas as pd
+import numpy as np
+
+import torch
+from transformers import AutoTokenizer, BertForMaskedLM
+import mxnet as mx
+from mxnet.gluon.data import SimpleDataset
+
+from experiments.exp_def import TaskDefs
+from experiments.exp_def import Experiment
 from mlm.scorers import MLMScorerPT
 from mlm.models import get_pretrained
-from transformers import AutoTokenizer
-import mxnet as mx
-from transformers import BertForMaskedLM
-from pathlib import Path
-import pickle
-from mt_dnn.model import MTDNNModel
-from experiments.exp_def import TaskDefs
-import torch
-from mxnet.gluon.data import SimpleDataset
-import json
-import numpy as np
-from typing import List, Tuple
-from math import exp
-from matplotlib import pyplot as plt 
-from experiments.exp_def import TaskDefs
-import seaborn as sns
-from time import time
-from experiments.exp_def import LingualSetting, Experiment
-from argparse import ArgumentParser 
 
 def create_heatmap(
     results: np.ndarray,
@@ -112,7 +112,6 @@ def construct_dataset(data_file, tokenizer):
     sents_expanded = []
     for sent_idx, example in enumerate(data):
         token_ids = example['token_id']
-        # token_type_ids = example['type_id']
         ids_masked = ids_to_masked(token_ids, tokenizer)
         for ids, mask_set in ids_masked:
             sents_expanded.append((sent_idx, ids, len(token_ids), mask_set, token_ids[mask_set], 1))
@@ -124,10 +123,7 @@ def construct_dataset(data_file, tokenizer):
 def mlm_score(
     state_dict,
     data_file,
-    path_to_task_def, 
-    prefix,
     scores_out_file,
-    n_words,
     device_id):
 
     if Path(scores_out_file).is_file():
@@ -142,9 +138,9 @@ def mlm_score(
     else:
         tokenizer = AutoTokenizer.from_pretrained('bert-base-multilingual-cased')
         vocab = tokenizer.vocab
+        model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased')
 
         if state_dict is not None:
-            model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased')
             if "cls.predictions.bias" not in state_dict:
                 og_state_dict = model.state_dict()
                 for param in [
@@ -159,8 +155,6 @@ def mlm_score(
                         state_dict[param] = og_state_dict[param]
 
             model.load_state_dict(state_dict, strict=True)
-        else:
-            model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased')
         
         scorer = MLMScorerPT(
             model,
@@ -220,46 +214,42 @@ def main(
             results = np.zeros((len(datasets)+1,))
         else:
             results = np.zeros((len(datasets),))
+        
+        # load model.
+        print(f'loading ckpt from {model_ckpt}.')
+        state_dict = torch.load(model_ckpt)
+        if 'optimizer' in state_dict:
+            del state_dict['optimizer']
+            del state_dict['config']
+            state_dict = state_dict['state']
+
+            for param in [
+                "scoring_list.0.weight",
+                "scoring_list.0.bias",
+                "pooler.dense.weight",
+                "pooler.dense.bias",
+                "bert.pooler.dense.weight",
+                "bert.pooler.dense.bias"
+            ]:
+                del state_dict[param]
 
         if do_individual:
             for i, dataset in enumerate(datasets):
                 print(f'Evaluating mlm for {model_name} on {dataset}.')
 
                 data_file = data_root.joinpath(f'{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json')
-                path_to_task_def = Path(f'experiments/MLM/{task.name}/task_def.yaml')
                 scores_for_dataset_out_file = Path(f'mlm_scores/{task.name}').joinpath(model_name, f'{dataset}_scores.pkl')
 
                 start = time()
-
-                print(f'loading ckpt from {model_ckpt}.')
-                state_dict = torch.load(model_ckpt)
-                if 'optimizer' in state_dict:
-                    del state_dict['optimizer']
-                    del state_dict['config']
-                    state_dict = state_dict['state']
-
-                    for param in [
-                        "scoring_list.0.weight",
-                        "scoring_list.0.bias",
-                        "pooler.dense.weight",
-                        "pooler.dense.bias",
-                        "bert.pooler.dense.weight",
-                        "bert.pooler.dense.bias"
-                    ]:
-                        del state_dict[param]
-
-                plls, pppl, nwords = mlm_score(
+                _, pppl, nwords = mlm_score(
                     state_dict,
                     data_file,
-                    path_to_task_def,
-                    task.name.lower(),
                     scores_for_dataset_out_file,
-                    n_words,
                     device_id)
                 end = time() - start
 
                 results[i] = pppl
-                print(f'PPPL for {model_name}->{dataset}: {pppl}, in {end:.4f}s')
+                print(f'\nPPPL for {model_name}->{dataset}: {pppl}, in {end:.4f}s\n')
 
                 # update n_words if we haven't saved it yet.
                 if not n_words_path.is_file():
@@ -271,15 +261,19 @@ def main(
                 pd.DataFrame(values, index=index).to_csv(n_words_path)
         
         if do_combined:
-            try:
-                n_combined_words = sum(n_words.values())
-            except:
-                print([type(d) for d in n_words.values()])
-                raise
+            n_combined_words = sum(n_words.values())
             combined_scores = []
 
+            for k, v in n_words.items():
+                print(f'{k}: {v}')
+            print(f'combined: {n_combined_words}')
+
             for i, dataset in enumerate(datasets):
-                scores_for_dataset_out_file = Path(f'mlm_scores/{task.name}').joinpath(model_name, f'{dataset}_scores.pkl')
+                scores_for_dataset_out_file = Path(f'mlm_scores').joinpath(
+                    task.name,
+                    model_name,
+                    f'{dataset}_scores.pkl')
+                
                 with open(scores_for_dataset_out_file, 'rb') as f:
                     scores_for_dataset = pickle.load(f)
                     combined_scores.extend(scores_for_dataset)
@@ -287,6 +281,7 @@ def main(
             # compute PPPL pseudo perplexity for corpus
             print('Scoring PPPL for combined...')
             combined_pppl = compute_pppl(combined_scores, n_combined_words)
+            print(f'\nPPPL for {model_name}->combined: {combined_pppl}\n')
             results[-1] = combined_pppl
         
         np.save(mlm_scores_out_file, results)
@@ -305,10 +300,22 @@ def main(
         out_file=mlm_scores_out_file.with_suffix('.pdf')
     )
 
+def combine_split_scores(dataset):
+    all_scores = []
+    for score_pkl in Path('mlm_scores/MARC/MARC_EN-FR-DE-ES').rglob(f'{dataset}_*_scores.pkl'):
+        with open(score_pkl, 'rb') as f:
+            score_for_split = pickle.load(f)
+        all_scores.extend(score_for_split)
+    
+    out_file = Path('mlm_scores/MARC/MARC_EN-FR-DE-ES').joinpath(f'{dataset}_scores.pkl')
+    with open(out_file, 'wb') as f:
+        pickle.dump(all_scores, f)
+    
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--model_ckpt', type=str)
     parser.add_argument('--task', type=str)
+    parser.add_argument('--device_id', type=int, default=0)
     args = parser.parse_args()
 
     task = Experiment[args.task]
@@ -333,7 +340,7 @@ if __name__ == '__main__':
             'zh',
             'en'
         ]
-        main(task, 'NLI_all-lang', checkpoint_dir.joinpath('15lang/model_5_294528.pt'), datasets)
+        main(task, 'NLI_all-lang', checkpoint_dir.joinpath('15lang/model_5_294528.pt'), datasets, device_id=args.device_id)
 
         datasets = [
             'de',
@@ -341,9 +348,8 @@ if __name__ == '__main__':
             'fr',
             'en'
         ]
-        main(task, 'NLI_EN/FR/DE/ES', checkpoint_dir.joinpath('4lang/model_5_294528.pt'), datasets)
+        main(task, 'NLI_EN-FR-DE-ES', checkpoint_dir.joinpath('4lang/model_5_294528.pt'), datasets, device_id=args.device_id)
         
     else: 
-        model_ckpt = checkpoint_dir.joinpath(f'mlm_{task.name.lower()}_finetuned')
-        model_name = f'{task.name}_EN/FR/DE/ES'
-        main(task, model_name, model_ckpt, ['en', 'fr', 'de', 'es'])
+        model_name = f'{task.name}_EN-FR-DE-ES'
+        main(task, model_name, args.model_ckpt, ['en', 'es', 'fr', 'de'])
