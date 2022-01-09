@@ -1,6 +1,5 @@
 # coding=utf-8
 # Copyright (c) Microsoft. All rights reserved.
-import os
 import torch
 import torch.nn as nn
 from pretrained_models import MODEL_CLASSES
@@ -12,7 +11,6 @@ from torch.nn.modules.normalization import LayerNorm
 from data_utils.task_def import EncoderModelType, TaskType
 import tasks
 from experiments.exp_def import TaskDef
-
 
 def generate_decoder_opt(enable_san, max_opt):
     opt_v = 0
@@ -67,7 +65,7 @@ class SANBertNetwork(nn.Module):
             self.dropout_list.append(dropout)
 
             task_obj = tasks.get_task_obj(task_def)
-            if task_obj is not None: # Classification
+            if task_obj is not None: 
                 self.pooler = Pooler(hidden_size, dropout_p= opt['dropout_p'], actf=opt['pooler_actf'])
                 out_proj = task_obj.train_build_task_layer(decoder_opt, hidden_size, lab, opt, prefix='answer', dropout=dropout)
             elif task_type == TaskType.SeqenceLabeling:
@@ -111,6 +109,14 @@ class SANBertNetwork(nn.Module):
         layer = self.get_attention_layer(hl)
         layer.detach_head_probe()
 
+    def get_pooler_layer(self):
+        _, pooler = list(self.bert.named_children())[2]
+        return pooler
+    
+    def attach_model_probe(self, n_classes, device):
+        pooler = self.get_pooler_layer()
+        pooler.attach_model_probe(n_classes, device)
+
     def embed_encode(self, input_ids, token_type_ids=None, attention_mask=None):
         if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
@@ -139,36 +145,20 @@ class SANBertNetwork(nn.Module):
             last_hidden_state = outputs.last_hidden_state
             all_hidden_states = outputs.hidden_states 
             head_probe_output = outputs.head_probe_output
+            model_probe_output = outputs.model_probe_output
 
-        return last_hidden_state, all_hidden_states, head_probe_output
+        return last_hidden_state, all_hidden_states, head_probe_output, model_probe_output
 
     def forward(self, input_ids, token_type_ids, attention_mask, premise_mask=None, hyp_mask=None, task_id=0, y_input_ids=None, fwd_type=0, embed=None):        
         assert fwd_type == 0, fwd_type
-
-        if fwd_type == 3:
-            generated = self.bert.generate(input_ids=input_ids,
-                attention_mask=attention_mask,
-                max_length=self.config['max_answer_len'], 
-                num_beams=self.config['num_beams'],
-                repetition_penalty=self.config['repetition_penalty'],
-                length_penalty=self.config['length_penalty'], 
-                early_stopping=True
-            )
-            return generated
-        elif fwd_type == 2:
-            assert embed is not None
-            last_hidden_state, all_hidden_states = self.encode(None, token_type_ids, attention_mask, embed, y_input_ids)
-        elif fwd_type == 1:
-            return self.embed_encode(input_ids, token_type_ids, attention_mask)
-        else: # fwd_type == 0
-            encode_outputs = self.encode(
-                                input_ids,
-                                token_type_ids,
-                                attention_mask,
-                                y_input_ids=y_input_ids,
-                                output_hidden_states=True
-                            )
-            last_hidden_state, all_hidden_states, head_probe_output = encode_outputs
+        encode_outputs = self.encode(
+                            input_ids,
+                            token_type_ids,
+                            attention_mask,
+                            y_input_ids=y_input_ids,
+                            output_hidden_states=True
+                        )
+        last_hidden_state, all_hidden_states, head_probe_output, model_probe_output = encode_outputs
 
         decoder_opt = self.decoder_opt[task_id]
         task_type = self.task_types[task_id]
@@ -183,7 +173,7 @@ class SANBertNetwork(nn.Module):
                                             decoder_opt,
                                             self.dropout_list[task_id],
                                             self.scoring_list[task_id])
-            return logits, head_probe_output
+            return logits, head_probe_output, model_probe_output
 
         elif task_type == TaskType.Span:
             assert decoder_opt != 1

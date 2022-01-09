@@ -183,8 +183,6 @@ def prepare_data(args):
                 lab_dict=task_def.label_vocab)
 
 if __name__ == '__main__':
-    import shutil
-
     parser = argparse.ArgumentParser(
         description='Preprocessing GLUE/SNLI/SciTail dataset.')
     parser.add_argument('--model', type=str, default='bert-base-multilingual-cased',
@@ -194,22 +192,4 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str)
 
     args = parser.parse_args()
-
-    # datasets = [
-    #         'ar',
-    #         'bg',
-    #         'el',
-    #         'hi',
-    #         'ru',
-    #         'sw',
-    #         'th',
-    #         'tr',
-    #         'ur',
-    #         'vi',
-    #         'zh',
-    #     ]
-    # for data in datasets:
-    #     # shutil.copy('experiments/NLI/de/task_def.yaml', f'experiments/NLI/{data}/task_def.yaml')
-    #     args.dataset = f'NLI/combined'
-
     prepare_data(args)

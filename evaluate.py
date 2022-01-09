@@ -168,12 +168,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--device_id', type=int, default=0)
     parser.add_argument('--model_ckpt', type=str)
+    parser.add_argument('--out_file', type=str, default='')
     parser.add_argument('--task', type=str)
     args = parser.parse_args()
 
     task = Experiment[args.task.upper()]
 
-    results_out_file = Path(f'evaluation_results/{task.name}.csv')
+    if args.out_file == '':
+        results_out_file = Path(f'evaluation_results/{task.name}.csv')
+    else:
+        results_out_file = Path(f'evaluation_results/{args.out_file}.csv')
     results_out_file.parent.mkdir(parents=True, exist_ok=True)
 
     if task is Experiment.NLI:
@@ -231,12 +235,12 @@ if __name__ == '__main__':
     else:
         results = pd.read_csv(results_out_file, index_col=0)
 
-    create_heatmap(
-        data_df=results,
-        row_labels=[d.upper() for d in datasets],
-        column_labels=[task.name],
-        xaxlabel='',
-        yaxlabel='languages',
-        out_file=f'evaluation_results/{task.name}',
-        figsize=(5, 14)
-    )
+    # create_heatmap(
+    #     data_df=results,
+    #     row_labels=[d.upper() for d in datasets],
+    #     column_labels=[task.name],
+    #     xaxlabel='',
+    #     yaxlabel='languages',
+    #     out_file=f'evaluation_results/{task.name}',
+    #     figsize=(5, 14)
+    # )

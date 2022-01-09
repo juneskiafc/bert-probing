@@ -40,6 +40,10 @@ def model_config(parser):
     parser.add_argument('--head_probe_idx', type=int)
     parser.add_argument('--head_probe_n_classes', type=int)
 
+    # model probing
+    parser.add_argument('--model_probe', action='store_true')
+    parser.add_argument('--model_probe_n_classes', type=int)
+
     # kqv probing
     parser.add_argument('--kqv_probing', action='store_true')
 
@@ -354,7 +358,7 @@ def main():
         devices=args.devices,
         num_train_step=num_all_batches)
     
-    if not (args.kqv_probing or args.mlm_scoring or args.mlm_finetune or args.head_probe):
+    if not (args.kqv_probing or args.mlm_scoring or args.mlm_finetune or args.head_probe or args.model_probe):
         if state_dict is not None and args.resume:
             if args.huggingface_ckpt:
                 params_to_remove = [
@@ -451,6 +455,26 @@ def main():
             args.head_probe_idx,
             n_classes=args.head_probe_n_classes)
     
+        init_epoch_idx = 0
+        init_global_step = 0
+    
+    if args.model_probe:
+        print_message(logger, 'probing whole model.')
+
+        # freeze all params
+        for p in model.network.parameters():
+            p.requires_grad = False
+        
+        # load model, making sure to match scoring_list params
+        if args.model_ckpt != '':
+            state_dict = torch.load(args.model_ckpt)
+            state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
+            state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
+            model.load_state_dict(state_dict)
+        
+        # then attach probing head
+        model.attach_model_probe(n_classes=args.model_probe_n_classes)
+
         init_epoch_idx = 0
         init_global_step = 0
     

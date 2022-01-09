@@ -317,7 +317,7 @@ def combine_split_scores(dataset):
     
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--model_ckpt', type=str)
+    parser.add_argument('--model_ckpt', type=str, default='')
     parser.add_argument('--huggingface_ckpt', action='store_true')
     parser.add_argument('--task', type=str)
     parser.add_argument('--device_id', type=int, default=0)
@@ -348,7 +348,7 @@ if __name__ == '__main__':
         main(
             task,
             'NLI_all-lang',
-            checkpoint_dir.joinpath('15lang/model_5_294528.pt'),
+            checkpoint_dir.joinpath('15lang/pytorch_model.bin'),
             args.huggingface_ckpt,
             datasets,
             device_id=args.device_id
@@ -363,7 +363,7 @@ if __name__ == '__main__':
         main(
             task, 
             'NLI_EN-FR-DE-ES',
-            checkpoint_dir.joinpath('4lang/model_5_294528.pt'),
+            checkpoint_dir.joinpath('4lang/pytorch_model.bin'),
             args.huggingface_ckpt,
             datasets,
             device_id=args.device_id

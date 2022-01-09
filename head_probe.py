@@ -96,15 +96,60 @@ def probe_heads(setting: LingualSetting,
     # Collect statuses
     results = [p[-1].communicate() for p in processes]
 
+def probe_model(setting: LingualSetting,
+                finetuned_task: Experiment,
+                downstream_task: Experiment,
+                downstream_task_setting: LingualSetting,
+                devices: List[int]):
+    
+    devices = ' '.join([str(d) for d in devices])
+
+    # where all the data and task_def are stored.
+    task_root = Path(f'experiments/{downstream_task.name}')
+
+    # programmatically get n_classes for task
+    task_def_path = task_root.joinpath('task_def.yaml')
+    task_def = TaskDefs(task_def_path).get_task_def(downstream_task.name.lower())
+    n_classes = task_def.n_class
+
+    if setting is LingualSetting.BASE:
+        checkpoint_dir = Path('checkpoint/full_model_probe').joinpath(
+            f'{downstream_task_setting.name.lower()}_head_training',
+            'mBERT',
+            downstream_task.name)
+    else:
+        checkpoint_dir = Path('checkpoint/full_model_probe').joinpath(
+            f'{downstream_task_setting.name.lower()}_head_training',
+            finetuned_task.name,
+            downstream_task.name,
+            setting.name.lower())
+
+    template = f'python train.py --local_rank -1 '
+    template += f'--dataset_name {downstream_task.name}/{downstream_task_setting.name.lower()} '
+    
+    if setting is not LingualSetting.BASE:
+        finetuned_checkpoint_dir = Path(f'checkpoint/{finetuned_task.name}_{setting.name.lower()}')
+        finetuned_checkpoint = list(finetuned_checkpoint_dir.rglob('model_5*.pt'))[0]
+        template += f"--resume --model_ckpt {finetuned_checkpoint} "
+    
+    template += f"--epochs 2 --output_dir {checkpoint_dir} "
+    template += f"--init_checkpoint bert-base-multilingual-cased --devices {devices} "
+    template += f'--model_probe --model_probe_n_classes {n_classes}' # layer 12, head 0 is final CLS
+
+    print(f'{finetuned_task.name}_{setting.name.lower()} -> {downstream_task.name}, {downstream_task_setting.name.lower()}')
+    process = subprocess.Popen(template, shell=True)
+    results = process.communicate()
+
 if __name__ == '__main__':
     parser = ArgumentParser()
+    parser.add_argument('--parse_mode', type=str)
     parser.add_argument('--task', type=str, default='')
-    parser.add_argument('--finetuned_task', type=str)
+    parser.add_argument('--probe_setting', type=str, default='cross')
+    parser.add_argument('--finetuned_task', type=str, default='')
+    parser.add_argument('--finetuned_setting', type=str, default='')
     parser.add_argument('--devices', nargs='+')
     parser.add_argument('--models_per_gpu', type=int, default=1)
     args = parser.parse_args()
-
-    finetuned_task = Experiment[args.finetuned_task.upper()]
 
     if args.devices is not None:
         devices = [int(d) for d in args.devices]
@@ -115,12 +160,28 @@ if __name__ == '__main__':
         tasks = [Experiment[args.task.upper()]]
     else:
         tasks = list(Experiment)
-
+        tasks.remove(Experiment.NLI)
+    
+    if args.finetuned_setting == '':
+        settings = list(LingualSetting)
+    else:
+        settings = [LingualSetting[args.finetuned_setting.upper()]]
+    
     for task in tasks:
-        if task is not Experiment.NLI:
-            for setting in list(LingualSetting):
-                probe_heads(setting=setting,            
-                            finetuned_task=finetuned_task,
-                            task=task,
-                            devices=devices,
-                            models_per_gpu=args.models_per_gpu)
+        for setting in settings:            
+            if args.parse_mode == 'heads':
+                probe_heads(
+                    setting=setting,            
+                    finetuned_task=Experiment[args.finetuned_task.upper()],
+                    task=task,
+                    devices=devices,
+                    models_per_gpu=args.models_per_gpu
+                )
+            elif args.parse_mode == 'model':
+                probe_model(
+                    setting=setting,
+                    finetuned_task=Experiment[args.finetuned_task.upper()],
+                    downstream_task=task,
+                    downstream_task_setting=LingualSetting[args.probe_setting.upper()],
+                    devices=devices
+                )

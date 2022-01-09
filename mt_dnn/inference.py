@@ -79,7 +79,8 @@ def eval_model(model,
                with_label=True,
                label_mapper=None,
                task_type=TaskType.Classification,
-               head_probe=False):
+               head_probe=False,
+               model_probe=False):
     predictions = []
     golds = []
     scores = []
@@ -88,7 +89,7 @@ def eval_model(model,
 
     for (batch_info, batch_data) in tqdm(data, total=len(data)):
         batch_info, batch_data = Collater.patch_data(device, batch_info, batch_data)
-        score, pred, gold = model.predict(batch_info, batch_data, head_probe)
+        score, pred, gold = model.predict(batch_info, batch_data, head_probe, model_probe)
         scores = merge(score, scores)
         golds = merge(gold, golds)
         predictions = merge(pred, predictions)

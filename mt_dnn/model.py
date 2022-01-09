@@ -70,6 +70,9 @@ class MTDNNModel(object):
 
     def detach_head_probe(self, hl):
         self.network.detach_head_probe(hl)
+    
+    def attach_model_probe(self, n_classes):
+        self.network.attach_model_probe(n_classes, self.device)
 
     def _get_param_groups(self):
         no_decay = ['bias', 'gamma', 'beta', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -175,17 +178,22 @@ class MTDNNModel(object):
                 weight = batch_data[batch_meta['factor']]
 
         # fw to get logits
-        logits, head_probe_logits = self.mnetwork(*inputs)
+        logits, head_probe_logits, model_probe_logits = self.mnetwork(*inputs)
 
         # compute loss
         loss = 0
         loss_criterion = self.task_loss_criterion[task_id]
         if loss_criterion and (y is not None):
             y.to(logits.device)
-            if head_probe_logits is None:
+            if head_probe_logits is None and model_probe_logits is None:
                 loss = loss_criterion(logits, y, weight, ignore_index=-1)
             else:
-                loss = loss_criterion(head_probe_logits, y, weight, ignore_index=-1)
+                if head_probe_logits is not None:
+                    loss = loss_criterion(head_probe_logits, y, weight, ignore_index=-1)
+                elif model_probe_logits is not None:
+                    loss = loss_criterion(model_probe_logits, y, weight, ignore_index=-1)
+                else:
+                    raise ValueError
 
         batch_size = batch_data[batch_meta['token_id']].size(0)
         self.train_loss.update(loss.item(), batch_size)
@@ -220,7 +228,7 @@ class MTDNNModel(object):
         all_encoder_layers, pooled_output = self.mnetwork.bert(*inputs)
         return all_encoder_layers, pooled_output
 
-    def predict(self, batch_meta, batch_data, head_probe=False):
+    def predict(self, batch_meta, batch_data, head_probe=False, model_probe=False):
         self.network.eval()
         task_id = batch_meta['task_id']
         task_def = TaskDef.from_dict(batch_meta['task_def'])
@@ -236,9 +244,11 @@ class MTDNNModel(object):
             inputs.append(None)
             inputs.append(3)
 
-        score, head_probe_logits = self.mnetwork(*inputs)
+        score, head_probe_logits, model_probe_logits = self.mnetwork(*inputs)
         if head_probe:
             score = head_probe_logits
+        elif model_probe:
+            score = model_probe_logits
 
         if task_obj is not None:
             score, predict = task_obj.test_predict(score)

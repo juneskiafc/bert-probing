@@ -147,4 +147,4 @@ def make_evaluation_data():
     combine_datasets(fourlang_datasets, 'experiments/NLI/4lang_combined/nli_test.tsv')
 
 if __name__ == '__main__':
-    make_evaluation_data()
+    raw_tsv_to_mtdnn_format([MNLI_TRAIN], CROSS_TRAIN)
