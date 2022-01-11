@@ -1,4 +1,4 @@
-from typing import List, Union, Tuple, Dict
+from typing import List, Union, Tuple
 import argparse
 from pathlib import Path
 import os
@@ -17,6 +17,7 @@ from mt_dnn.model import MTDNNModel
 from mt_dnn.inference import eval_model
 
 from data_utils.task_def import EncoderModelType, TaskType
+from data_utils.metrics import Metric
 from experiments.exp_def import (
     Experiment,
     LingualSetting,
@@ -89,16 +90,16 @@ def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def, de
     return test_data
 
 def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
-    task_def_path = Path('experiments').joinpath(
-        task.name,
-        'task_def.yaml'
-    )
+    if setting is not LingualSetting.BASE:
+        task_def_path = Path('experiments').joinpath(task.name, 'task_def.yaml')
+        task_name = task.name.lower()
+    else:
+        # dummy
+        task_def_path = Path('experiments').joinpath('NLI', 'task_def.yaml')
+        task_name = 'nli'
 
     task_defs = TaskDefs(task_def_path)
-    assert task.name.lower() in task_defs._task_type_map
-    assert task.name.lower() in task_defs._data_type_map
-    assert task.name.lower() in task_defs._metric_meta_map
-    metric_meta = task_defs._metric_meta_map[task.name.lower()]
+    task_def = task_defs.get_task_def(task_name)
 
     # load model
     if setting is not LingualSetting.BASE:
@@ -106,7 +107,8 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
         assert os.path.exists(checkpoint), checkpoint
     else:
-        checkpoint_dir = Path('checkpoint').joinpath(f'{task.name}_cross')
+        # dummy.
+        checkpoint_dir = Path('checkpoint').joinpath(f'NLI_multi')
         checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
 
     state_dict = torch.load(checkpoint)
@@ -116,7 +118,6 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
     config['answer_opt'] = 0
     config['adv_train'] = False
     
-    task_def = task_defs.get_task_def(task.name.lower())
     task_def_list = [task_def]
     config['task_def_list'] = task_def_list
     config["cuda"] = True
@@ -127,17 +128,17 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         del state_dict['optimizer']
 
     model = MTDNNModel(config, devices=[device_id])
+    if setting is LingualSetting.BASE:
+        return model
 
     # scoring_list classification head doesn't matter because we're just taking
-    # the head probe outputs.
+    # the model probe outputs.
     if 'scoring_list.0.weight' in state_dict['state']:
         state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
         state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
 
-    if setting is not LingualSetting.BASE:
-        model.load_state_dict(state_dict)
-    
-    return model, metric_meta
+    model.load_state_dict(state_dict)
+    return model
 
 def get_acc(model, test_data, metric_meta, device_id, model_probe):
     with torch.no_grad():
@@ -154,38 +155,36 @@ def get_acc(model, test_data, metric_meta, device_id, model_probe):
             model_probe=model_probe
         )
     metrics = results[0]
-    predictions = results[1]
-    golds = results[3]
-    ids = results[4]
-
-    preds_df = pd.Series(predictions)
-    golds_df = pd.Series(golds)
-    id_df = pd.Series(ids)
-    return metrics['F1MAC'], preds_df, golds_df, id_df
+    metric_name = metric_meta[0].name
+    return metrics[metric_name]
 
 def evaluate_model_probe(
-    task: Experiment,
+    downstream_task: Experiment,
     finetuned_task: Union[Experiment, None],
-    setting: LingualSetting,
-    results: pd.DataFrame,
+    finetuned_setting: LingualSetting,
+    probe_setting: LingualSetting,
+    metric: str,
     batch_size: int=8,
     max_seq_len: int=512,
     device_id: int=0):
 
     """
-    Evaluate model probe for a NLI model on a task.
+    Evaluate model probe for a model finetuned on finetuned_task on a downstream_task.
     """
     task_def_path = Path('experiments').joinpath(
-        task.name,
+        downstream_task.name,
         'task_def.yaml'
     )
-    task_def = TaskDefs(task_def_path).get_task_def(task.name.lower())
+    task_def = TaskDefs(task_def_path).get_task_def(downstream_task.name.lower())
+
+    # test data is always multilingual.
     data_path = Path('experiments').joinpath(
-        task.name,
+        downstream_task.name,
         'multi',
         'bert-base-multilingual-cased',
-        f'{task.name.lower()}_test.json'
+        f'{downstream_task.name.lower()}_test.json'
     )
+    print(f'data from {data_path}')
 
     test_data = build_dataset(
         data_path,
@@ -195,32 +194,36 @@ def evaluate_model_probe(
         task_def,
         device_id)
 
-    model, metric_meta = construct_model(
+    model = construct_model(
         finetuned_task,
-        setting,
+        finetuned_setting,
         device_id)
     
-    if finetuned_task is not None:
-        print(f'\n{finetuned_task.name}/{setting.name.lower()} -> {task.name}')
-    else:
-        print(f'\nmBERT -> {task.name}')
-        assert setting is LingualSetting.BASE
+    metric_meta = (Metric[metric.upper()],)
     
-    # load state dict for the attention head.
+    if finetuned_task is not None:
+        print(f'\n{finetuned_task.name}/{finetuned_setting.name.lower()} -> {downstream_task.name}, {probe_setting.name.lower()}')
+    else:
+        print(f'\nmBERT -> {downstream_task.name}, {probe_setting.name.lower()}')
+    
+    # load state dict for the attention head
     if finetuned_task is not None:
         state_dict_for_head = Path('checkpoint').joinpath(
             'full_model_probe',
+            f'{probe_setting.name.lower()}_head_training',
             finetuned_task.name,
-            task.name,
-            setting.name.lower()
+            finetuned_setting.name.lower(),
+            downstream_task.name,
         )
     else:
         state_dict_for_head = Path('checkpoint').joinpath(
             'full_model_probe',
+            f'{probe_setting.name.lower()}_head_training',
             'mBERT',
-            task.name,
+            downstream_task.name,
         )
 
+    print(f'loading from {state_dict_for_head}')
     state_dict_for_head = list(state_dict_for_head.rglob("*.pt"))[0]
     state_dict_for_head = torch.load(state_dict_for_head)['state']
 
@@ -235,18 +238,17 @@ def evaluate_model_probe(
     weight = state_dict_for_head[f'bert.pooler.model_probe_head.weight']
     bias = state_dict_for_head[f'bert.pooler.model_probe_head.bias']
     
+    weight_save_path = Path(f'debug/{probe_setting.name.lower()}_head_training/{finetuned_task.name}/{downstream_task.name}.pt')
+    weight_save_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(weight, weight_save_path)
+
     layer.model_probe_head.weight = nn.Parameter(weight.to(device_id))
     layer.model_probe_head.bias = nn.Parameter(bias.to(device_id))
 
     # compute acc and save
-    acc, preds_for_layer, golds, ids = get_acc(model, test_data, metric_meta, device_id, model_probe=True)
-
-    if finetuned_task is None:
-        results.loc[f'mBERT', task.name] = acc
-    else:
-        results.loc[f'{finetuned_task.name}_{setting.name.lower()}', task.name] = acc
+    acc = get_acc(model, test_data, metric_meta, device_id, model_probe=True)
         
-    return results
+    return acc
 
 def combine_all_model_probe_scores():
     combined_results = None
@@ -270,75 +272,119 @@ def combine_all_model_probe_scores():
         out_file=f'model_probe_outputs/final_result'
     )
 
-def get_model_probe_scores(args):
-    tasks = list(Experiment)
-    tasks.remove(Experiment.NLI)
+def get_model_probe_final_score(
+    finetuned_task: Experiment,
+    finetuned_setting: LingualSetting,
+    probe_setting: LingualSetting):
 
-    if args.finetuned_task != '':
-        finetuned_task = Experiment[args.finetuned_task.upper()]
-    else:
-        finetuned_task = None
+    final_results_out_file = Path(f'model_probe_outputs').joinpath(
+        f'{probe_setting.name.lower()}_training',
+        f'{finetuned_task.name}_{finetuned_setting.name.lower()}',
+        'evaluation_results.csv')
+
+    result_path_for_finetuned_model = final_results_out_file.parent.joinpath('results.csv')
     
-    final_results_out_file = Path(f'model_probe_outputs/{finetuned_task.name}/final_results.csv')
-    if final_results_out_file.is_file():
-        final_results = pd.read_csv(final_results_out_file, index_col=0)
-    else:
-        final_results_out_file.parent.mkdir(parents=True, exist_ok=True)
+    result_path_for_mBERT = Path(f'model_probe_outputs').joinpath(
+            f'{probe_setting.name.lower()}_training',
+            f'mBERT',
+            'results.csv')
+    
+    finetuned_results = pd.read_csv(result_path_for_finetuned_model, index_col=0)
+    mBERT_results = pd.read_csv(result_path_for_mBERT, index_col=0)
 
-        results_out_file = final_results_out_file.parent.joinpath('results.csv')
-        if results_out_file.is_file():
-            results = pd.read_csv(results_out_file, index_col=0)
-        else:
-            results = pd.DataFrame(np.zeros((2, 4)))
-            results.index = [
-                f'{finetuned_task.name}_cross',
-                f'{finetuned_task.name}_multi',
-            ]
-            results.columns = ['POS', 'NER', 'PAWSX', 'MARC']
+    print(finetuned_results)
+    print(mBERT_results)
 
-            tasks = list(Experiment)
-            tasks.remove(Experiment.NLI)
-            for task in tasks:
-                for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
-                    evaluate_model_probe(task, finetuned_task, setting, results, device_id=args.device_id)
-            results.to_csv(results_out_file)
-        
-        base_results_out_file = Path(f'model_probe_outputs/base/results.csv')
-        if not base_results_out_file.is_file():
-            base_results_out_file.parent.mkdir(parents=True, exist_ok=True)
-            base_results = pd.DataFrame(np.zeros((1, 4)))
-            base_results.index = ['mBERT']
-            base_results.columns = ['POS', 'NER', 'PAWSX', 'MARC']
-
-            for task in tasks:
-                evaluate_model_probe(task, None, LingualSetting.BASE, base_results, device_id=args.device_id)
-            base_results.to_csv(base_results_out_file)
-        else:
-            base_results = pd.read_csv(base_results_out_file, index_col=0)
-
-        print(results)
-        print(base_results)
-        final_results = pd.DataFrame(results.values - base_results.values)
-        final_results.index = [f'{finetuned_task.name}_cross', f'{finetuned_task.name}_multi']
-        final_results.columns = ['POS', 'NER', 'PAWSX', 'MARC']
-        final_results.to_csv(final_results_out_file)
+    final_results = pd.DataFrame(finetuned_results.values - mBERT_results.values)
+    final_results.index = finetuned_results.index
+    final_results.columns = finetuned_results.columns
+    final_results.to_csv(final_results_out_file)
 
     create_heatmap(
         data_df=final_results,
-        row_labels=[f'{finetuned_task.name}_cross',f'{finetuned_task.name}_multi'],
-        column_labels=['POS', 'NER', 'PAWSX', 'MARC'],
+        row_labels=finetuned_results.index,
+        column_labels=finetuned_results.columns,
         xaxlabel='task',
         yaxlabel='model',
-        out_file=f'model_probe_outputs/{finetuned_task.name}/final_results'
+        out_file=final_results_out_file.with_suffix('')
     )
+
+
+def get_model_probe_scores(
+    finetuned_task: Experiment,
+    finetuned_setting: LingualSetting,
+    probe_setting: LingualSetting,
+    metric: str,
+    device_id: int,
+    batch_size: int = 8,
+    max_seq_len: int = 512):
+    
+    if finetuned_setting is LingualSetting.BASE:
+        model_name = 'mBERT'
+        finetuned_task = None
+    else:
+        model_name = f'{finetuned_task.name}_{finetuned_setting.name.lower()}'
+
+    results_out_file = Path(f'model_probe_outputs').joinpath(
+        f'{probe_setting.name.lower()}_training',
+        model_name,
+        'results.csv')
+
+    if results_out_file.is_file():
+        print(f'{results_out_file} already exists.')
+        return
+    else:
+        print(results_out_file.parent)
+        results_out_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    tasks = list(Experiment)
+    tasks.remove(Experiment.NLI)
+
+    results = pd.DataFrame(np.zeros((1, len(tasks))))
+    results.index = [model_name]
+    results.columns = [task.name for task in tasks]
+    
+    for downstream_task in tasks:
+        acc = evaluate_model_probe(
+            downstream_task,
+            finetuned_task,
+            finetuned_setting,
+            probe_setting,
+            metric,
+            batch_size,
+            max_seq_len,
+            device_id)
+
+        if finetuned_setting is LingualSetting.BASE:
+            results.loc[f'mBERT', downstream_task.name] = acc
+        else:
+            results.loc[f'{finetuned_task.name}_{finetuned_setting.name.lower()}', downstream_task.name] = acc
+        
+    results.to_csv(results_out_file)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--device_id', type=int, default=0)
-    parser.add_argument('--finetuned_task', type=str, default='')
+    parser.add_argument('--finetuned_task', type=str, default='NLI')
+    parser.add_argument('--finetuned_setting', type=str, default='multi')
+    parser.add_argument('--probe_setting', type=str, default='cross')
+    parser.add_argument('--metric', type=str, default='F1MAC')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
     
-    # get_model_probe_scores(args)
-    combine_all_model_probe_scores()
+    get_model_probe_scores(
+        Experiment[args.finetuned_task],
+        LingualSetting[args.finetuned_setting.upper()],
+        LingualSetting[args.probe_setting.upper()],
+        args.metric,
+        args.device_id,
+        args.batch_size,
+        args.max_seq_len
+    )
+
+    # get_model_probe_final_score(
+    #     Experiment[args.finetuned_task],
+    #     LingualSetting[args.finetuned_setting.upper()],
+    #     LingualSetting[args.probe_setting.upper()]
+    # )

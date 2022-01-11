@@ -3,16 +3,17 @@ import os
 from pathlib import Path
 from torch.distributed import is_initialized, get_rank
 
-def save_checkpoint(model, epoch, output_dir):
+def save_checkpoint(model, epoch, output_dir, keep_last=True):
     model_file = Path(output_dir).joinpath(f'model_{epoch}_{model.updates}.pt')
     model_file.parent.mkdir(exist_ok=True, parents=True)
 
     # only keep last
-    existing_checkpoints = list(Path(output_dir).iterdir())
-    if len(existing_checkpoints) > 0:
-        for checkpoint in existing_checkpoints:
-            if Path(str(checkpoint)).is_file():
-                os.remove(checkpoint)
+    if keep_last:
+        existing_checkpoints = list(Path(output_dir).rglob("*.pt"))
+        if len(existing_checkpoints) > 0:
+            for checkpoint in existing_checkpoints:
+                if Path(str(checkpoint)).is_file():
+                    os.remove(checkpoint)
     
     model.save(model_file)
     return model_file

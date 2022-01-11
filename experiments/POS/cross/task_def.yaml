@@ -23,7 +23,7 @@ pos:
     - VERB
     - X
   metric_meta:
-    - ACC
+    - F1MAC
   loss: CeCriterion
   n_class: 17
   task_type: Classification

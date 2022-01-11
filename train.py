@@ -467,6 +467,7 @@ def main():
         
         # load model, making sure to match scoring_list params
         if args.model_ckpt != '':
+            print(f'model_probe, loading model ckpt from {args.model_ckpt}')
             state_dict = torch.load(args.model_ckpt)
             state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
             state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
@@ -474,6 +475,8 @@ def main():
         
         # then attach probing head
         model.attach_model_probe(n_classes=args.model_probe_n_classes)
+        optimizer_parameters = model._get_param_groups()
+        model._setup_optim(optimizer_parameters, None, num_all_batches)
 
         init_epoch_idx = 0
         init_global_step = 0
@@ -485,7 +488,7 @@ def main():
         wandb.init(project='soroush', name=exp_name)
 
     # main training loop
-    for epoch in range(init_epoch_idx, init_epoch_idx+args.epochs):
+    for epoch in range(init_epoch_idx, init_epoch_idx+args.epochs):        
         print_message(logger, f'At epoch {epoch}', level=1)
 
         for (batch_meta, batch_data) in multi_task_train_dataloader:
@@ -507,6 +510,9 @@ def main():
                         'epoch': epoch
                     })
 
+        after = model.mnetwork.get_pooler_layer().model_probe_head.weight.clone()
+        assert not torch.equal(model._before, after)
+        
         model_file = save_checkpoint(model, epoch, output_dir)
         print_message(logger, f'Saving mt-dnn model to {model_file}')
 
