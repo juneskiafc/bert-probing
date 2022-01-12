@@ -221,8 +221,8 @@ else:
 output_dir = args.output_dir
 data_dir = args.data_dir
 
-# multiple datasets are split by ','
-args.train_datasets = args.train_datasets.split(',')
+# multiple datasets are split by '_'
+args.train_datasets = args.train_datasets.split('_')
 
 # seed everything.
 set_environment(args.seed, args.cuda)
@@ -278,7 +278,7 @@ def main():
                 printable=True)
             
             train_datasets.append(train_data_set)
-    
+
     train_collater = Collater(
         dropout_w=args.dropout_w,
         encoder_type=encoder_type,
@@ -296,10 +296,11 @@ def main():
                                 bin_size=args.bin_size,
                                 bin_grow_ratio=args.bin_grow_ratio)
 
-    multi_task_train_dataloader = DataLoader(multi_task_train_dataset,
-                                       batch_sampler=multi_task_batch_sampler,
-                                       collate_fn=train_collater.collate_fn,
-                                       pin_memory=len(args.devices)>0)
+    multi_task_train_dataloader = DataLoader(
+        multi_task_train_dataset,
+        batch_sampler=multi_task_batch_sampler,
+        collate_fn=train_collater.collate_fn,
+        pin_memory=len(args.devices)>0)
 
     train_data_lists.append(multi_task_train_dataloader)
 
@@ -509,9 +510,6 @@ def main():
                         'global_step': init_global_step + model.updates,
                         'epoch': epoch
                     })
-
-        after = model.mnetwork.get_pooler_layer().model_probe_head.weight.clone()
-        assert not torch.equal(model._before, after)
         
         model_file = save_checkpoint(model, epoch, output_dir)
         print_message(logger, f'Saving mt-dnn model to {model_file}')

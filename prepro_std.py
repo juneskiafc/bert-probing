@@ -4,7 +4,7 @@ from pathlib import Path
 import argparse
 import json
 from data_utils import load_data
-from data_utils.task_def import TaskType, DataFormat
+from data_utils.task_def import DataFormat
 from data_utils.log_wrapper import create_logger
 from experiments.exp_def import TaskDefs
 from transformers import AutoTokenizer
@@ -167,7 +167,6 @@ def prepare_data(args):
         task_def = task_defs.get_task_def(task)
         
         for split_name in task_def.split_names:
-            dataset_name = args.dataset.split("/")[-1]
             file_path = root.joinpath(f"{task}_{split_name}.tsv")
             if not file_path.is_file():
                 raise FileNotFoundError(file_path)

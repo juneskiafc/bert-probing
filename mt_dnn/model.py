@@ -150,7 +150,9 @@ class MTDNNModel(object):
     def _setup_tokenizer(self):
         try:
             from transformers import AutoTokenizer 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.config['init_checkpoint'], cache_dir=self.config['transformer_cache'])
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.config['init_checkpoint'],
+                cache_dir=self.config['transformer_cache'])
         except:
             self.tokenizer = None
 
@@ -198,14 +200,9 @@ class MTDNNModel(object):
 
         batch_size = batch_data[batch_meta['token_id']].size(0)
         self.train_loss.update(loss.item(), batch_size)
-
-        # scale loss
-        if self.local_updates == 0:
-            self._before = self.mnetwork.get_pooler_layer().model_probe_head.weight.clone()
         
         loss = loss / self.config.get('grad_accumulation_step', 1)
         loss.backward()
-        # print(before[0, :5])
 
         self.local_updates += 1
         if self.local_updates % self.config.get('grad_accumulation_step', 1) == 0:
@@ -215,11 +212,6 @@ class MTDNNModel(object):
                     self.config['global_grad_clipping'])
             self.updates += 1
             self.optimizer.step()
-            # print(before[0, :5])
-            # if self.local_updates == 500:
-            #     after = self.mnetwork.get_pooler_layer().model_probe_head.weight.clone()
-            #     raise ValueError(torch.equal(self._before, after))
-            
             self.optimizer.zero_grad()
 
     def encode(self, batch_meta, batch_data):

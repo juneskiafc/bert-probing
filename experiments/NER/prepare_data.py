@@ -16,9 +16,6 @@ def _prepare_data(out_dir, langs_by_split):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for split in ['train', 'test']:
-        if split not in langs_by_split:
-            continue
-    
         final_out_file = out_dir.joinpath(f'ner_{split}.tsv')
         out_file = out_dir.joinpath(f'ner_{split}_tmp.json')
 
@@ -63,14 +60,8 @@ def prepare_finetune_data():
         
         _prepare_data(out_dir, langs_by_split)
 
-def prepare_per_language_test_data():
-    for language in ['en', 'fr', 'de', 'es']:
-        out_dir = Path(f'experiments/NER/{language}')
-        langs_by_split = {'test': [language]}
-        _prepare_data(out_dir, langs_by_split)
-
 if __name__ == '__main__':
-    prepare_per_language_test_data()
+    prepare_finetune_data()
 
 
 

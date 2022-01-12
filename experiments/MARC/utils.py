@@ -1,34 +1,27 @@
+from datasets import load_dataset, concatenate_datasets, Dataset
+import pandas as pd
 from pathlib import Path
 
-def split_dataset(n, task, datasets):
-    for dataset in datasets:
-        dataset_file = f'experiments/{task}/{dataset}/{task.lower()}_test.tsv'
+# en fr de es
+for split in ['train', 'test']:
+    out_file = f'experiments/MARC/marc_{split}_tmp.json'
+    if not Path(out_file).is_file():
+        datasets = []
+        for lang in ['en', 'fr', 'de', 'es']:
+            dataset = load_dataset('amazon_reviews_multi', lang, split=split)
+            datasets.append(dataset)
 
-        n_lines = 0
-        with open(dataset_file, 'r') as f:
-            for line in f:
-                n_lines += 1
+        dataset = concatenate_datasets(datasets)
+        dataset.to_json(out_file)
 
-        n_split = 0
-        lines_per_split = n_lines // n
-
-        with open(dataset_file, 'r') as fr:
-            for i, line in enumerate(fr):
-                if i % lines_per_split == 0:
-                    print(i, lines_per_split)
-                    split_file_name = Path(f'experiments/{task}/{dataset}_{n_split}/{task.lower()}_test.tsv')
-                    split_file_name.parent.mkdir(parents=True, exist_ok=True)
-                    fw = open(split_file_name, 'w')
-                    n_split += 1
-
-                fw.write(line)
-
-if __name__ == '__main__':
-    split_dataset(2, 'MARC', ['en', 'es', 'fr'])
-                
-
-
-
+    # load and save as tsv in mtdnn format
+    df = Dataset.from_json(out_file)
+    final_out_file = f'experiments/MARC/marc_{split}.tsv'
+    with open(final_out_file, 'w') as f:
+        for i, row in enumerate(df):
+            premise = row['review_body']
+            label = row['stars']
+            f.write(f'{i}\t{label}\t{premise}\n')
 
 
 

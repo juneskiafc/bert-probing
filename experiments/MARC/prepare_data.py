@@ -8,11 +8,6 @@ def _prepare_data(train_langs, test_langs, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for split in ['train', 'test']:
-        if train_langs is None and split == 'train':
-            continue
-        elif test_langs is None and split == 'test':
-            continue
-
         out_file = out_dir.joinpath(f'marc_{split}_tmp.json')
         final_out_file = out_dir.joinpath(f'marc_{split}.tsv')
 
@@ -54,10 +49,5 @@ def prepare_finetune_data():
 
         _prepare_data(train_langs, test_langs, out_dir)
 
-def prepare_per_language_test_data():
-    for lang in ['en', 'fr', 'de', 'es']:  
-        out_dir = Path(f'experiments/MARC/{lang}')
-        _prepare_data(None, [lang], out_dir)
-
 if __name__ == '__main__':
-    prepare_per_language_test_data()
+    prepare_finetune_data()
