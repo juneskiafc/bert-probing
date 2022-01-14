@@ -140,7 +140,6 @@ class DataTrainingArguments:
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
     device_id: str = field(default='0')
-    setting: str = field(default='cross')
 
 def get_dataset(
     args: DataTrainingArguments,
@@ -210,7 +209,7 @@ def main():
 
     # Load pretrained model and tokenizer
     config = AutoConfig.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-multilingual-cased', cache_dir=model_args.cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
 
     model = AutoModelWithLMHead.from_pretrained(
         model_args.model_name_or_path,

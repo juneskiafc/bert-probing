@@ -108,7 +108,7 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         assert os.path.exists(checkpoint), checkpoint
     else:
         # dummy.
-        checkpoint_dir = Path('checkpoint').joinpath(f'NLI_multi')
+        checkpoint_dir = Path('checkpoint').joinpath(f'NER_multi')
         checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
 
     state_dict = torch.load(checkpoint)
@@ -202,7 +202,7 @@ def evaluate_model_probe(
     metric_meta = (Metric[metric.upper()],)
     
     if finetuned_task is not None:
-        print(f'\n{finetuned_task.name}/{finetuned_setting.name.lower()} -> {downstream_task.name}, {probe_setting.name.lower()}')
+        print(f'\n{finetuned_task.name}_{finetuned_setting.name.lower()} -> {downstream_task.name}, {probe_setting.name.lower()}_head_training')
     else:
         print(f'\nmBERT -> {downstream_task.name}, {probe_setting.name.lower()}')
     
@@ -238,9 +238,9 @@ def evaluate_model_probe(
     weight = state_dict_for_head[f'bert.pooler.model_probe_head.weight']
     bias = state_dict_for_head[f'bert.pooler.model_probe_head.bias']
     
-    weight_save_path = Path(f'debug/{probe_setting.name.lower()}_head_training/{finetuned_task.name}/{downstream_task.name}.pt')
-    weight_save_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(weight, weight_save_path)
+    # weight_save_path = Path(f'debug/{probe_setting.name.lower()}_head_training/{finetuned_task.name}/{downstream_task.name}.pt')
+    # weight_save_path.parent.mkdir(parents=True, exist_ok=True)
+    # torch.save(weight, weight_save_path)
 
     layer.model_probe_head.weight = nn.Parameter(weight.to(device_id))
     layer.model_probe_head.bias = nn.Parameter(bias.to(device_id))
@@ -253,14 +253,15 @@ def evaluate_model_probe(
 def combine_all_model_probe_scores():
     combined_results = None
 
-    for task in list(Experiment):        
-        result_for_task = f'model_probe_outputs/{task.name}/final_results.csv'
-        result_for_task = pd.read_csv(result_for_task, index_col=0)
+    for task in list(Experiment):
+        for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:  
+            result_for_task = f'model_probe_outputs/cross_training/{task.name}_{setting.name.lower()}/evaluation_results.csv'
+            result_for_task = pd.read_csv(result_for_task, index_col=0)
 
-        if combined_results is None:
-            combined_results = result_for_task
-        else:
-            combined_results = pd.concat([combined_results, result_for_task], axis=0)
+            if combined_results is None:
+                combined_results = result_for_task
+            else:
+                combined_results = pd.concat([combined_results, result_for_task], axis=0)
     
     combined_results.to_csv('model_probe_outputs/final_result.csv')
     create_heatmap(
@@ -373,18 +374,20 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
     
-    get_model_probe_scores(
-        Experiment[args.finetuned_task],
-        LingualSetting[args.finetuned_setting.upper()],
-        LingualSetting[args.probe_setting.upper()],
-        args.metric,
-        args.device_id,
-        args.batch_size,
-        args.max_seq_len
-    )
+    # get_model_probe_scores(
+    #     Experiment[args.finetuned_task],
+    #     LingualSetting[args.finetuned_setting.upper()],
+    #     LingualSetting[args.probe_setting.upper()],
+    #     args.metric,
+    #     args.device_id,
+    #     args.batch_size,
+    #     args.max_seq_len
+    # )
 
     # get_model_probe_final_score(
     #     Experiment[args.finetuned_task],
     #     LingualSetting[args.finetuned_setting.upper()],
     #     LingualSetting[args.probe_setting.upper()]
     # )
+
+    # combine_all_model_probe_scores()
