@@ -86,9 +86,6 @@ def build_dataset(data_path, batch_size, max_seq_len, task_def, device_id):
 def construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int):
     task_defs = TaskDefs(task_def_path)
     task_name = task.name.lower()
-    assert task_name in task_defs._task_type_map
-    assert task_name in task_defs._data_type_map
-    assert task_name in task_defs._metric_meta_map
     metric_meta = task_defs._metric_meta_map[task_name]
 
     state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
@@ -98,12 +95,15 @@ def construct_model(checkpoint: str, task: Experiment, task_def_path: str, devic
     config['answer_opt'] = 0
     config['adv_train'] = False
     
-    task_def = task_defs.get_task_def(task_name)
-    task_def_list = [task_def]
+    task_def_list = [task_defs.get_task_def(task_name)]
     config['task_def_list'] = task_def_list
     config["cuda"] = True
     config['device'] = device_id
     del state_dict['optimizer']
+
+    # remove non pertinent scoring lists.
+    for param in ['scoring_list.1.weight', 'scoring_list.1.bias', 'scoring_list.2.weight', 'scoring_list.2.bias']:
+        del state_dict['state'][param]
 
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
@@ -149,7 +149,7 @@ def evaluate_model_against_multiple_datasets(
     metrics = []
     
     for dataset in datasets:
-        print(f'Evaluating on {dataset}')
+        print(f'Evaluating on {task.name}-{dataset}...')
         data_path = f'experiments/{task.name}/{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json'
 
         test_data = build_dataset(
@@ -169,6 +169,7 @@ if __name__ == '__main__':
     parser.add_argument('--device_id', type=int, default=0)
     parser.add_argument('--model_ckpt', type=str)
     parser.add_argument('--out_file', type=str, default='')
+    parser.add_argument('--task_def', type=str, default='')
     parser.add_argument('--task', type=str)
     args = parser.parse_args()
 
@@ -212,7 +213,11 @@ if __name__ == '__main__':
     if not results_out_file.is_file():
         root_ckpt_path = Path('checkpoint/')
         encoder_type = EncoderModelType.BERT
-        task_def_path = f'experiments/{task.name}/{datasets[0]}/task_def.yaml'
+
+        if args.task_def == '':
+            task_def_path = f'experiments/{task.name}/{datasets[0]}/task_def.yaml'
+        else:
+            task_def_path = args.task_def
 
         model, metric_meta = construct_model(
             args.model_ckpt,
@@ -235,12 +240,13 @@ if __name__ == '__main__':
     else:
         results = pd.read_csv(results_out_file, index_col=0)
 
-    # create_heatmap(
-    #     data_df=results,
-    #     row_labels=[d.upper() for d in datasets],
-    #     column_labels=[task.name],
-    #     xaxlabel='',
-    #     yaxlabel='languages',
-    #     out_file=f'evaluation_results/{task.name}',
-    #     figsize=(5, 14)
-    # )
+    print(results)
+    create_heatmap(
+        data_df=results,
+        row_labels=[d.upper() for d in datasets],
+        column_labels=[task.name],
+        xaxlabel='',
+        yaxlabel='languages',
+        out_file=results_out_file.with_suffix(''),
+        figsize=(5, 14)
+    )

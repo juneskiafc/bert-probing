@@ -210,7 +210,7 @@ args = parser.parse_args()
 
 # some stuff in data can be automated
 dataset_name = args.dataset_name
-args.data_dir = f'experiments/{dataset_name}/bert-base-multilingual-cased'
+args.data_dir = f'experiments/{dataset_name}/{args.bert_model_type}'
 args.task_def = f'experiments/{dataset_name}/task_def.yaml'
 if "/" in dataset_name:
     args.train_datasets = dataset_name.split("/")[0].lower()
@@ -318,7 +318,7 @@ def main():
 
     literal_encoder_type = EncoderModelType(opt['encoder_type']).name.lower()
     config_class, _, _ = MODEL_CLASSES[literal_encoder_type]
-    config = config_class.from_pretrained('bert-base-multilingual-cased').to_dict()
+    config = config_class.from_pretrained(args.bert_model_type).to_dict()
 
     config['attention_probs_dropout_prob'] = args.bert_dropout_p
     config['hidden_dropout_prob'] = args.bert_dropout_p
