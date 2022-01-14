@@ -210,7 +210,7 @@ args = parser.parse_args()
 
 # some stuff in data can be automated
 dataset_name = args.dataset_name
-args.data_dir = f'experiments/{dataset_name}/bert-base-multilingual-cased'
+args.data_dir = f'experiments/{dataset_name}/{args.bert_model_type}'
 args.task_def = f'experiments/{dataset_name}/task_def.yaml'
 if "/" in dataset_name:
     args.train_datasets = dataset_name.split("/")[0].lower()
@@ -318,7 +318,7 @@ def main():
 
     literal_encoder_type = EncoderModelType(opt['encoder_type']).name.lower()
     config_class, _, _ = MODEL_CLASSES[literal_encoder_type]
-    config = config_class.from_pretrained('bert-base-multilingual-cased').to_dict()
+    config = config_class.from_pretrained(args.bert_model_type).to_dict()
 
     config['attention_probs_dropout_prob'] = args.bert_dropout_p
     config['hidden_dropout_prob'] = args.bert_dropout_p
@@ -362,28 +362,46 @@ def main():
     if not (args.kqv_probing or args.mlm_scoring or args.mlm_finetune or args.head_probe or args.model_probe):
         if state_dict is not None and args.resume:
             if args.huggingface_ckpt:
-                params_to_remove = [
-                    "cls.predictions.bias",
-                    "cls.predictions.transform.dense.weight",
-                    "cls.predictions.transform.dense.bias",
-                    "cls.predictions.transform.LayerNorm.weight",
-                    "cls.predictions.transform.LayerNorm.bias",
-                    "cls.predictions.decoder.weight",
-                    "cls.predictions.decoder.bias"
-                ]
-                params_to_add = [
-                    "bert.pooler.dense.weight",
-                    "bert.pooler.dense.bias",
-                    "scoring_list.0.weight",
-                    "scoring_list.0.bias",
-                    "pooler.dense.weight",
-                    "pooler.dense.bias"
-                ]
+                if args.bert_model_type == 'bert-base-multilingual-cased':
+                    params_to_remove = [
+                        "cls.predictions.bias",
+                        "cls.predictions.transform.dense.weight",
+                        "cls.predictions.transform.dense.bias",
+                        "cls.predictions.transform.LayerNorm.weight",
+                        "cls.predictions.transform.LayerNorm.bias",
+                        "cls.predictions.decoder.weight",
+                        "cls.predictions.decoder.bias"
+                    ]
+                elif args.bert_model_type == 'xlm-roberta-base':
+                    params_to_remove = []
+
+                    # rename roberta -> bert
+                    renamed_state_dict = {}
+                    for n, p in state_dict.items():
+                        new_name = n.split('.')
+                        if new_name[0] == 'roberta':
+                            new_name[0] = 'bert'
+                            new_name = '.'.join(new_name)
+                            renamed_state_dict[new_name] = p
+                    state_dict = renamed_state_dict
 
                 for param_name in params_to_remove:
-                    del state_dict[param_name]
+                    if param_name in state_dict:
+                        print(f'{param_name} in state_dict, removing')
+                        del state_dict[param_name]
+                    else:
+                        print(f'{param_name} not in state_dict')
                 
                 _init_state_dict = model.network.state_dict()
+
+                params_to_add = [
+                        "bert.pooler.dense.weight",
+                        "bert.pooler.dense.bias",
+                        "scoring_list.0.weight",
+                        "scoring_list.0.bias",
+                        "pooler.dense.weight",
+                        "pooler.dense.bias"
+                    ]
                 for param_name in params_to_add:
                     state_dict[param_name] = _init_state_dict[param_name]
                 

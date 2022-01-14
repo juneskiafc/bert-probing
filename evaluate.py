@@ -140,6 +140,7 @@ def get_metric(model, test_data, metric_meta, device_id, head_probe):
 
 def evaluate_model_against_multiple_datasets(
     model: MTDNNModel,
+    model_type: str,
     task: Experiment,
     metric_meta,
     datasets: List[str],
@@ -150,7 +151,11 @@ def evaluate_model_against_multiple_datasets(
     
     for dataset in datasets:
         print(f'Evaluating on {dataset}')
-        data_path = f'experiments/{task.name}/{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json'
+        if model_type == 'bert':
+            model_full_name = 'bert-base-multilingual-cased'
+        else:
+            model_full_name = 'xlm-roberta-base'
+        data_path = f'experiments/{task.name}/{dataset}/{model_full_name}/{task.name.lower()}_test.json'
 
         test_data = build_dataset(
             data_path,
@@ -170,6 +175,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_ckpt', type=str)
     parser.add_argument('--out_file', type=str, default='')
     parser.add_argument('--task', type=str)
+    parser.add_argument('--model_type', type=str, default='bert')
     args = parser.parse_args()
 
     task = Experiment[args.task.upper()]
@@ -211,7 +217,8 @@ if __name__ == '__main__':
         
     if not results_out_file.is_file():
         root_ckpt_path = Path('checkpoint/')
-        encoder_type = EncoderModelType.BERT
+        encoder_type = EncoderModelType[args.model_type.upper()]
+        
         task_def_path = f'experiments/{task.name}/{datasets[0]}/task_def.yaml'
 
         model, metric_meta = construct_model(
@@ -222,6 +229,7 @@ if __name__ == '__main__':
         
         accs = evaluate_model_against_multiple_datasets(
             model,
+            args.model_type,
             task,
             metric_meta,
             datasets,
@@ -235,12 +243,12 @@ if __name__ == '__main__':
     else:
         results = pd.read_csv(results_out_file, index_col=0)
 
-    # create_heatmap(
-    #     data_df=results,
-    #     row_labels=[d.upper() for d in datasets],
-    #     column_labels=[task.name],
-    #     xaxlabel='',
-    #     yaxlabel='languages',
-    #     out_file=f'evaluation_results/{task.name}',
-    #     figsize=(5, 14)
-    # )
+    create_heatmap(
+        data_df=results,
+        row_labels=[d.upper() for d in datasets],
+        column_labels=[task.name],
+        xaxlabel='',
+        yaxlabel='languages',
+        out_file=f'evaluation_results/{task.name}',
+        figsize=(5, 14)
+    )
