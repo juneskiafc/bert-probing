@@ -195,7 +195,7 @@ def main(
     do_combined=True,
     device_id=0):
 
-    data_root = Path(f'experiments/{task.name}')
+    data_root = Path(f'experiments/MLM/{task.name}')
     mlm_scores_out_file = Path(f'mlm_scores/{task.name}/{model_name}/scores.npy')
     n_words_path = Path(f'mlm_scores/{task.name}/n_words.csv')
 
@@ -239,7 +239,7 @@ def main(
             for i, dataset in enumerate(datasets):
                 print(f'Evaluating mlm for {model_name} on {dataset}.')
 
-                data_file = data_root.joinpath(f'{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json')
+                data_file = data_root.joinpath(f'{dataset}/{task.name.lower()}_test.json')
                 scores_for_dataset_out_file = Path(f'mlm_scores/{task.name}').joinpath(model_name, f'{dataset}_scores.pkl')
 
                 start = time()
@@ -323,7 +323,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     task = Experiment[args.task]
-    checkpoint_dir = Path(f'checkpoint/mlm_finetuned/{task.name}/')
     base_model_name = "bert-base-multilingual-cased"
 
     if task is Experiment['NLI']:
@@ -346,27 +345,27 @@ if __name__ == '__main__':
         ]
         main(
             task,
-            'NLI_all-lang',
-            checkpoint_dir.joinpath('15lang/pytorch_model.bin'),
+            'NLI_all-lang_test',
+            args.model_ckpt,
             args.huggingface_ckpt,
             datasets,
             device_id=args.device_id
         )
 
-        datasets = [
-            'de',
-            'es',
-            'fr',
-            'en'
-        ]
-        main(
-            task, 
-            'NLI_EN-FR-DE-ES',
-            checkpoint_dir.joinpath('4lang/pytorch_model.bin'),
-            args.huggingface_ckpt,
-            datasets,
-            device_id=args.device_id
-        )
+        # datasets = [
+        #     'de',
+        #     'es',
+        #     'fr',
+        #     'en'
+        # ]
+        # main(
+        #     task, 
+        #     'NLI_EN-FR-DE-ES',
+        #     checkpoint_dir.joinpath('4lang/pytorch_model.bin'),
+        #     args.huggingface_ckpt,
+        #     datasets,
+        #     device_id=args.device_id
+        # )
         
     else: 
         model_name = Path(args.model_ckpt).parent.name
