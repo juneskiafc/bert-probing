@@ -1,57 +1,58 @@
 import torch
 from pathlib import Path
 import numpy as np
+import pandas as pd
 import seaborn as sns
+from argparse import ArgumentParser
 from scipy.stats import spearmanr
+import matplotlib.pyplot as plt
+from pretrained_models import MODEL_CLASSES
 
-def save_all_kqv(model, output_dir):
+def save_all_kqv(model_ckpt, output_dir):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # index in to bert
-    bert = model.network.bert
-    _, encoder_module = list(bert.named_children())[1]
-    _, all_hidden_layers = list(encoder_module.named_children())[0] # contains all encoder attention layers
+    if model_ckpt == '':
+        _, model_class, _ = MODEL_CLASSES['bert']
+        bert = model_class.from_pretrained('bert-base-multilingual-cased', cache_dir='.cache')
+        state_dict = {f'bert.{k}':v for k, v in bert.state_dict().items()}
+        model_name = 'mBERT'
+    else:   
+        model_name = Path(model_ckpt).parent.name
+        state_dict = torch.load(model_ckpt)['state']
 
-    for hidden_layer_idx, hidden_layer in enumerate(all_hidden_layers):
-        for (bert_sublayer_name, bert_sublayer) in hidden_layer.named_children():
-            if bert_sublayer_name == 'attention':
-                _, self_attention_layer = list(bert_sublayer.named_children())[0]
-                assert self_attention_layer.__class__.__name__ == 'BertSelfAttention', self_attention_layer.__class__.__name__
-                output_dir_for_layer = output_dir.joinpath(str(hidden_layer_idx))
-                output_dir_for_layer.mkdir(parents=True, exist_ok=True)
+    for layer_idx in range(12):
+        K = state_dict[f'bert.encoder.layer.{layer_idx}.attention.self.key.weight']
+        Q = state_dict[f'bert.encoder.layer.{layer_idx}.attention.self.query.weight']
+        V = state_dict[f'bert.encoder.layer.{layer_idx}.attention.self.value.weight']
 
-                _, K = list(self_attention_layer.key.named_parameters())[0]
-                _, Q = list(self_attention_layer.query.named_parameters())[0]
-                _, V = list(self_attention_layer.value.named_parameters())[0]
+        n_heads = 12
+        size_per_head = K.shape[-1] // n_heads
 
-                n_heads = 12
-                size_per_head = K.shape[-1] // n_heads
+        for head_idx in range(n_heads):
+            output_dst_for_head = output_dir.joinpath(model_name, str(layer_idx), str(head_idx))
+            output_dst_for_head.mkdir(exist_ok=True, parents=True)
 
-                for head_idx in range(n_heads):
-                    output_dst_for_head = output_dir_for_layer.joinpath(str(head_idx))
-                    output_dst_for_head.mkdir(exist_ok=True)
+            ii = head_idx*size_per_head
+            fi = (head_idx+1) * size_per_head
 
-                    ii = head_idx*size_per_head
-                    fi = (head_idx+1) * size_per_head
+            # K
+            output_dst = output_dst_for_head.joinpath('key.pt')
+            torch.save(K[..., ii:fi], output_dst)
 
-                    # K
-                    output_dst = output_dst_for_head.joinpath('key.pt')
-                    torch.save(K[..., ii:fi], output_dst)
+            # Q
+            output_dst = output_dst_for_head.joinpath('query.pt')
+            torch.save(Q[..., ii:fi], output_dst)
 
-                    # Q
-                    output_dst = output_dst_for_head.joinpath('query.pt')
-                    torch.save(Q[..., ii:fi], output_dst)
+            # V
+            output_dst = output_dst_for_head.joinpath('value.pt')
+            torch.save(V[..., ii:fi], output_dst)
 
-                    # V
-                    output_dst = output_dst_for_head.joinpath('value.pt')
-                    torch.save(V[..., ii:fi], output_dst)
-
-def compare_kqv(task, output_dir):
+def compare_kqv(model_name, output_dir):
     output_dir = Path(output_dir)
-    finetuned_kqv_dir = Path(f'/home/june/mt-dnn/kqv/finetuned/{task}')
-    pretrained_kqv_dir = Path(f'/home/june/mt-dnn/kqv/pretrained')
-    output_diffs_file = output_dir.joinpath(f'{task}_diffs.npy')
+    finetuned_kqv_dir = output_dir.joinpath(f'{model_name}')
+    pretrained_kqv_dir = output_dir.joinpath('mBERT')
+    output_diffs_file = output_dir.joinpath(f'{model_name}_diffs.npy')
 
     if not output_diffs_file.is_file():
         diffs = np.zeros((12, 12))
@@ -81,15 +82,12 @@ def compare_kqv(task, output_dir):
                 diff_for_head = (k_diff + q_diff + v_diff).cpu().detach().numpy()
                 diffs[int(hidden_layer_idx), int(head_idx)] = diff_for_head
 
-        output_diffs_file = output_dir.joinpath(f'{task}_diffs.npy')
         np.save(output_diffs_file, diffs)
     
-    create_ranked_heads_heatmap(output_diffs_file, output_dir, task)
+    create_ranked_heads_heatmap(output_diffs_file, output_dir, model_name)
 
 def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, diffs=None):
     heatmap_out_file = output_dir.joinpath(f'{task}_ranked_heads_by_absdiff.png')
-    if heatmap_out_file.is_file():
-        return
     
     if diffs is None:
         heatmap = np.load(diffs_file)
@@ -100,39 +98,55 @@ def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, di
         max_ = np.amax(heatmap)
         heatmap /= max_
     
-    ax = sns.heatmap(heatmap)
+    plt.figure(figsize=(14, 14))
+    annot_kws = {'fontsize': 20}
+    ax = sns.heatmap(
+        heatmap,
+        cbar=False,
+        annot=True,
+        annot_kws=annot_kws,
+        fmt=".2f")
+
     ax.invert_yaxis()
     ax.set_xlabel('heads')
     ax.set_ylabel('layers')
-    ax.set_title(f'{task}-lingual \n absolute summed difference of KQV \n before/after fine-tuning')
     fig = ax.get_figure()
-    fig.savefig(output_dir.joinpath(f'{task}_ranked_heads_by_absdiff.png'))
+    fig.savefig(heatmap_out_file)
 
 def compare_kqv_across_multiple(task_name_a, task_name_b):
-    cross_diffs = np.load(f'/home/june/mt-dnn/kqv/{task_name_a}_diffs.npy')
-    multi_diffs = np.load(f'/home/june/mt-dnn/kqv/{task_name_b}_diffs.npy')
+    cross_diffs = np.load(f'kqv_outputs/results/{task_name_a}_diffs.npy')
+    multi_diffs = np.load(f'kqv_outputs/results/{task_name_b}_diffs.npy')
 
     heatmap = cross_diffs - multi_diffs
     heatmap = (2 * ((heatmap - np.amin(heatmap)) / (np.amax(heatmap) - np.amin(heatmap)))) - 1
 
-    ax = sns.heatmap(heatmap, center=0, cmap='bwr')
+    plt.figure(figsize=(14, 14))
+    annot_kws = {'fontsize': 20}
+    ax = sns.heatmap(
+        heatmap,
+        center=0, 
+        cmap='bwr',
+        cbar=False,
+        annot=True,
+        annot_kws=annot_kws,
+        fmt=".2f")
+    
     ax.invert_yaxis()
     ax.set_xlabel('heads')
     ax.set_ylabel('layers')
-    ax.set_title(f'{task_name_a}-{task_name_b}-comp \n absolute summed difference of KQV after fine-tuning')
     fig = ax.get_figure()
-    fig.savefig(f'/home/june/mt-dnn/kqv/{task_name_a}-{task_name_b}_comp_ranked_heads_by_absdiff.png')
+    fig.savefig(f'kqv_outputs/{task_name_a}-{task_name_b}_comp_ranked_heads_by_absdiff.png')
 
-def get_spearmans_rho():
-    cross_diffs = np.load('/home/june/mt-dnn/kqv/cross_diffs.npy')
-    multi_diffs = np.load('/home/june/mt-dnn/kqv/multi_diffs.npy')
+def get_spearmans_rho(task):
+    cross_diffs = np.load(f'kqv_outputs/results/{task}_cross_diffs.npy')
+    multi_diffs = np.load(f'kqv_outputs/results/{task}_multi_diffs.npy')
 
     cross_diffs = np.expand_dims(cross_diffs.flatten(), axis=1)
     multi_diffs = np.expand_dims(multi_diffs.flatten(), axis=1)
 
     rho, p = spearmanr(cross_diffs, multi_diffs)
 
-    return rho
+    return rho, p
 
 def plot_spearmans_rho(languages):
     def flatten_diffs(diffs):
@@ -164,10 +178,24 @@ def plot_spearmans_rho(languages):
     fig.savefig(f'/home/june/mt-dnn/kqv/alllang_ranked_heads_by_absdiff.png')
 
 if __name__ == "__main__":
-    languages = ['ar', 'bg', 'de', 'el', 'es', 'fr', 'hi', 'ru', 'sw', 'th', 'tr', 'ur', 'vi', 'zh']
-    # for l in languages:
-    #     task = f'multi-{l}'
-    #     compare_kqv(task=task, output_dir='/home/june/mt-dnn/kqv')
-    # compare_kqv_across_multiple('multi-ar', 'multi-bg')
-    # get_spearmans_rho()
-    plot_spearmans_rho(languages)
+    parser = ArgumentParser()
+    parser.add_argument('--model_ckpt', type=str, default='')
+    parser.add_argument('--output_dir', type=str, default='kqv_outputs')
+    parser.add_argument('--model_name', type=str, default='')
+    args = parser.parse_args()
+
+    # save_all_kqv(args.model_ckpt, args.output_dir)
+    # compare_kqv(args.model_name, args.output_dir)
+    # for task in ['POS', 'NER', 'PAWSX', 'MARC']:
+    #     compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
+
+    # rho_file = 'kqv_outputs/downstream_rho.csv'
+    # data = []
+    # for task in ['POS', 'NER', 'PAWSX', 'MARC']:
+    #     rho, p = get_spearmans_rho(task)
+    #     data.append([rho, p])
+    # df = pd.DataFrame(data)
+    # df.columns = ['rho', 'p']
+    # df.index = ['POS', 'NER', 'PAWSX', 'MARC']
+    # df.to_csv(rho_file)
+    # plot_spearmans_rho(languages)
