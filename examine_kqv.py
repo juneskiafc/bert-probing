@@ -52,7 +52,7 @@ def compare_kqv(model_name, output_dir):
     output_dir = Path(output_dir)
     finetuned_kqv_dir = output_dir.joinpath(f'{model_name}')
     pretrained_kqv_dir = output_dir.joinpath('mBERT')
-    output_diffs_file = output_dir.joinpath(f'{model_name}_diffs.npy')
+    output_diffs_file = output_dir.joinpath(f'results/{model_name}_diffs.npy')
 
     if not output_diffs_file.is_file():
         diffs = np.zeros((12, 12))
@@ -87,7 +87,7 @@ def compare_kqv(model_name, output_dir):
     create_ranked_heads_heatmap(output_diffs_file, output_dir, model_name)
 
 def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, diffs=None):
-    heatmap_out_file = output_dir.joinpath(f'{task}_ranked_heads_by_absdiff.png')
+    heatmap_out_file = output_dir.joinpath(f'results/{task}_ranked_heads_by_absdiff.pdf')
     
     if diffs is None:
         heatmap = np.load(diffs_file)
@@ -108,10 +108,13 @@ def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, di
         fmt=".2f")
 
     ax.invert_yaxis()
-    ax.set_xlabel('heads')
-    ax.set_ylabel('layers')
+    ax.set_xlabel('heads', fontsize=20)
+    ax.set_ylabel('layers', fontsize=20)
+    ax.tick_params(axis='x', labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+
     fig = ax.get_figure()
-    fig.savefig(heatmap_out_file)
+    fig.savefig(heatmap_out_file, bbox_inches='tight')
 
 def compare_kqv_across_multiple(task_name_a, task_name_b):
     cross_diffs = np.load(f'kqv_outputs/results/{task_name_a}_diffs.npy')
@@ -132,10 +135,13 @@ def compare_kqv_across_multiple(task_name_a, task_name_b):
         fmt=".2f")
     
     ax.invert_yaxis()
-    ax.set_xlabel('heads')
-    ax.set_ylabel('layers')
+    ax.set_xlabel('heads', fontsize=20)
+    ax.set_ylabel('layers', fontsize=20)
+    ax.tick_params(axis='x', labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+
     fig = ax.get_figure()
-    fig.savefig(f'kqv_outputs/{task_name_a}-{task_name_b}_comp_ranked_heads_by_absdiff.png')
+    fig.savefig(f'kqv_outputs/diff_results/{task_name_a}-{task_name_b}_comp_ranked_heads_by_absdiff.pdf', bbox_inches='tight')
 
 def get_spearmans_rho(task):
     cross_diffs = np.load(f'kqv_outputs/results/{task}_cross_diffs.npy')
@@ -185,7 +191,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # save_all_kqv(args.model_ckpt, args.output_dir)
-    # compare_kqv(args.model_name, args.output_dir)
+    for task in ['POS', 'NER', 'PAWSX', 'MARC']:
+        for setting in ['cross', 'multi']:
+            compare_kqv(f'{task}_{setting}', args.output_dir)
+        compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
     # for task in ['POS', 'NER', 'PAWSX', 'MARC']:
     #     compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
 

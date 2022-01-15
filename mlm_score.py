@@ -18,7 +18,6 @@ from transformers import AutoTokenizer, BertForMaskedLM
 import mxnet as mx
 from mxnet.gluon.data import SimpleDataset
 
-from experiments.exp_def import TaskDefs
 from experiments.exp_def import Experiment
 from mlm.scorers import MLMScorerPT
 from mlm.models import get_pretrained
@@ -370,7 +369,8 @@ if __name__ == '__main__':
         )
         
     else: 
-        model_name = f'{task.name}_EN-FR-DE-ES'
+        model_name = Path(args.model_ckpt).parent.name
+        # model_name = f'{task.name}_EN-FR-DE-ES'
         main(
             task,
             model_name,
