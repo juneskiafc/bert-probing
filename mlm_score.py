@@ -376,11 +376,22 @@ if __name__ == '__main__':
         else:
             model_name = 'mBERT'
         # model_name = f'{task.name}_EN-FR-DE-ES'
+        # langs = ['en', 'es', 'fr', 'de']
+        langs = [
+            # 'en',
+            # 'es_0',
+            'es_1',
+            'fr_0',
+            'fr_1',
+            'de_0',
+            'de_1'
+        ]
         main(
             task,
             model_name,
             args.model_ckpt,
             args.huggingface_ckpt,
-            ['en', 'es', 'fr', 'de'],
+            # ['en', 'es', 'fr', 'de'],
+            langs,
             device_id=args.device_id
         )

@@ -397,15 +397,13 @@ def main():
                 params_to_add = [
                         "bert.pooler.dense.weight",
                         "bert.pooler.dense.bias",
-                        "scoring_list.0.weight",
-                        "scoring_list.0.bias",
                         "pooler.dense.weight",
                         "pooler.dense.bias"
                     ]
                 num_tasks = len(task_def_list)
                 for i in range(num_tasks):
                     params_to_add.extend([f"scoring_list.{i}.weight", f"scoring_list.{i}.bias"])
-
+                
                 for param_name in params_to_add:
                     state_dict[param_name] = _init_state_dict[param_name]
                 

@@ -155,7 +155,7 @@ def make_mlm_data(task: Experiment):
     elif task is Experiment.PAWSX:
         make_mlm_data_from_pawsx(out_dir.joinpath('multi/pawsx_train.txt'))
     elif task is Experiment.MARC:
-        make_mlm_data_from_marc(out_dir.joinpath('4lang_train.txt'))
+        make_mlm_data_from_marc(out_dir.joinpath('multi/marc_train.txt'))
     elif task is Experiment.NER:
         make_mlm_data_from_ner(out_dir.joinpath('4lang_train.txt'))
 
@@ -167,7 +167,7 @@ if __name__ == '__main__':
     # make_mlm_json(MULTI_TEST, MULTI_TEST_OUT)
 
     for task in list(Experiment):
-        if task is Experiment.PAWSX:
+        if task is Experiment.MARC:
             make_mlm_data(task)
 
 
