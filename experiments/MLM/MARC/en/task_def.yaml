@@ -12,6 +12,5 @@ marc:
   n_class: 5
   loss: CeCriterion
   split_names:
-  - train
   - test
   task_type: Classification

@@ -217,27 +217,30 @@ def main(
             results = np.zeros((len(datasets),))
         
         # load model.
-        print(f'loading ckpt from {model_ckpt}.')
-        state_dict = torch.load(model_ckpt)
-        if not is_huggingface_ckpt:
-            if 'optimizer' in state_dict:
-                del state_dict['optimizer']
-                del state_dict['config']
-                state_dict = state_dict['state']
+        if model_ckpt != '':
+            print(f'loading ckpt from {model_ckpt}.')
+            state_dict = torch.load(model_ckpt)
+            if not is_huggingface_ckpt:
+                if 'optimizer' in state_dict:
+                    del state_dict['optimizer']
+                    del state_dict['config']
+                    state_dict = state_dict['state']
 
-                for param in [
-                    "scoring_list.0.weight",
-                    "scoring_list.0.bias",
-                    "pooler.dense.weight",
-                    "pooler.dense.bias",
-                    "bert.pooler.dense.weight",
-                    "bert.pooler.dense.bias"
-                ]:
-                    del state_dict[param]
+                    for param in [
+                        "scoring_list.0.weight",
+                        "scoring_list.0.bias",
+                        "pooler.dense.weight",
+                        "pooler.dense.bias",
+                        "bert.pooler.dense.weight",
+                        "bert.pooler.dense.bias"
+                    ]:
+                        del state_dict[param]
+        else:
+            state_dict = None
 
         if do_individual:
             for i, dataset in enumerate(datasets):
-                print(f'Evaluating mlm for {model_name} on {dataset}.')
+                print(f'Evaluating mlm for {model_name} on {dataset} [{task.name}].')
 
                 data_file = data_root.joinpath(f'{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json')
                 scores_for_dataset_out_file = Path(f'mlm_scores/{task.name}').joinpath(model_name, f'{dataset}_scores.pkl')
@@ -323,7 +326,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     task = Experiment[args.task]
-    checkpoint_dir = Path(f'checkpoint/mlm_finetuned/{task.name}/')
     base_model_name = "bert-base-multilingual-cased"
 
     if task is Experiment['NLI']:
@@ -346,36 +348,50 @@ if __name__ == '__main__':
         ]
         main(
             task,
-            'NLI_all-lang',
-            checkpoint_dir.joinpath('15lang/pytorch_model.bin'),
+            'NLI_all-lang_test_2',
+            args.model_ckpt,
             args.huggingface_ckpt,
             datasets,
             device_id=args.device_id
         )
 
-        datasets = [
-            'de',
-            'es',
-            'fr',
-            'en'
-        ]
-        main(
-            task, 
-            'NLI_EN-FR-DE-ES',
-            checkpoint_dir.joinpath('4lang/pytorch_model.bin'),
-            args.huggingface_ckpt,
-            datasets,
-            device_id=args.device_id
-        )
+        # datasets = [
+        #     'de',
+        #     'es',
+        #     'fr',
+        #     'en'
+        # ]
+        # main(
+        #     task, 
+        #     'NLI_EN-FR-DE-ES',
+        #     checkpoint_dir.joinpath('4lang/pytorch_model.bin'),
+        #     args.huggingface_ckpt,
+        #     datasets,
+        #     device_id=args.device_id
+        # )
         
     else: 
-        model_name = Path(args.model_ckpt).parent.name
+        if args.model_ckpt != '':
+            model_name = Path(args.model_ckpt).parent.name
+        else:
+            model_name = 'mBERT'
         # model_name = f'{task.name}_EN-FR-DE-ES'
+        # langs = ['en', 'es', 'fr', 'de']
+        langs = [
+            # 'en',
+            # 'es_0',
+            'es_1',
+            'fr_0',
+            'fr_1',
+            'de_0',
+            'de_1'
+        ]
         main(
             task,
             model_name,
             args.model_ckpt,
             args.huggingface_ckpt,
-            ['en', 'es', 'fr', 'de'],
+            # ['en', 'es', 'fr', 'de'],
+            langs,
             device_id=args.device_id
         )

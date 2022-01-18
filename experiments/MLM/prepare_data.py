@@ -91,7 +91,7 @@ def make_mlm_data_from_pos(out_file):
 
     train_data_files = [
         DATA_ROOT.joinpath('en/UD_English-EWT'),
-        DATA_ROOT.joinpath('fr/UD_French-FTB'),
+        DATA_ROOT.joinpath('fr/UD_French-GSD'),
         DATA_ROOT.joinpath('de/UD_German-GSD'),
         DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
     ]
@@ -108,7 +108,6 @@ def make_mlm_data_from_pawsx(out_file):
         return
 
     tmp_out_file = 'experiments/PAWSX/multi/pawsx_train_tmp.json'
-
     df = Dataset.from_json(str(tmp_out_file))
     with open(out_file, 'w', encoding='utf-8') as f:
         for i, row in enumerate(df):
@@ -152,24 +151,24 @@ def make_mlm_data(task: Experiment):
         make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('15lang_train.txt'))
         make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('4lang_train.txt'), languages=['en', 'fr', 'de', 'es'])
     elif task is Experiment.POS:
-        make_mlm_data_from_pos(out_dir.joinpath('4lang_train.txt'))
+        make_mlm_data_from_pos(out_dir.joinpath('multi/pos_train.txt'))
     elif task is Experiment.PAWSX:
-        make_mlm_data_from_pawsx(out_dir.joinpath('4lang_train.txt'))
+        make_mlm_data_from_pawsx(out_dir.joinpath('multi/pawsx_train.txt'))
     elif task is Experiment.MARC:
-        make_mlm_data_from_marc(out_dir.joinpath('4lang_train.txt'))
+        make_mlm_data_from_marc(out_dir.joinpath('multi/marc_train.txt'))
     elif task is Experiment.NER:
         make_mlm_data_from_ner(out_dir.joinpath('4lang_train.txt'))
 
-    
 if __name__ == '__main__':
-    make_mlm_data_from_raw_mnli('experiments/MLM/NLI/cross/cross_train.txt')
+    # make_mlm_data_from_raw_mnli('experiments/MLM/NLI/cross/cross_train.txt')
     # make_mlm_json(CROSS_TRAIN, CROSS_TRAIN_OUT)
     # make_mlm_json(MULTI_TRAIN, MULTI_TRAIN_OUT)
     # make_mlm_json(CROSS_TEST, CROSS_TEST_OUT)
     # make_mlm_json(MULTI_TEST, MULTI_TEST_OUT)
 
-    # for task in list(Experiment):
-    #     make_mlm_data(task)
+    for task in list(Experiment):
+        if task is Experiment.MARC:
+            make_mlm_data(task)
 
 
             

@@ -196,6 +196,7 @@ class BaseModelOutputWithPoolingAndCrossAttentions(ModelOutput):
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
     head_probe_output: Optional[torch.FloatTensor] = None
+    model_probe_output: Optional[torch.FloatTensor] = None
 
 
 @dataclass

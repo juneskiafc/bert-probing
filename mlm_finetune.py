@@ -207,7 +207,12 @@ def main():
 
     # Load pretrained model and tokenizer
     config = AutoConfig.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name, cache_dir=model_args.cache_dir)
+
+    tokenizer_name = model_args.tokenizer_name
+    if tokenizer_name is None:
+        tokenizer_name = model_args.model_name_or_path
+    
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=model_args.cache_dir)
 
     model = AutoModelWithLMHead.from_pretrained(
         model_args.model_name_or_path,
