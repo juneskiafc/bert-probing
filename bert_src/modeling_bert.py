@@ -27,7 +27,6 @@ import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 import einops
-import transformers
 
 from ...activations import ACT2FN
 from ...file_utils import (
@@ -238,10 +237,10 @@ class BertSelfAttention(nn.Module):
         self.is_decoder = config.is_decoder
         self.head_probe = False
     
-    def attach_head_probe(self, head_idx, n_classes, device):
+    def attach_head_probe(self, head_idx, n_classes=3, device_id=-1):
         self.head_probe = True
         self.head_probe_head_idx = head_idx
-        self.head_probe_dense_layer = nn.Linear(self.attention_head_size, n_classes).cuda(device)
+        self.head_probe_dense_layer = nn.Linear(self.attention_head_size, n_classes).cuda(device=device_id)
 
     def detach_head_probe(self):
         delattr(self, 'head_probe_dense_layer')
@@ -421,7 +420,7 @@ class BertAttention(nn.Module):
         outputs = (attention_output,)
 
         if len(self_outputs) == 3 or (len(self_outputs) == 2 and not head_probe):
-            outputs = outputs + self_outputs[1]  # add attentions if we output them
+            outputs = outputs + (self_outputs[1],)  # add attentions if we output them
 
         if head_probe:
             outputs = outputs + (self_outputs[-1],) # add head probing result
@@ -655,6 +654,8 @@ class BertEncoder(nn.Module):
 class BertPooler(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.hidden_size = config.hidden_size
+        self.model_probe = False
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.activation = nn.Tanh()
 
@@ -664,7 +665,17 @@ class BertPooler(nn.Module):
         first_token_tensor = hidden_states[:, 0]
         pooled_output = self.dense(first_token_tensor)
         pooled_output = self.activation(pooled_output)
-        return pooled_output
+
+        if self.model_probe:
+            model_probe_logits = self.model_probe_head(first_token_tensor)
+            return pooled_output, model_probe_logits
+        else:
+            return pooled_output
+    
+    def attach_model_probe(self, n_classes, device):
+        self.model_probe = True
+        self.model_probe_head = nn.Linear(self.hidden_size, n_classes)
+        self.model_probe_head.to(device)
 
 
 class BertPredictionHeadTransform(nn.Module):
@@ -1028,7 +1039,14 @@ class BertModel(BertPreTrainedModel):
         )
 
         sequence_output = encoder_outputs[0]
-        pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
+        pooled_outputs = self.pooler(sequence_output) if self.pooler is not None else None
+        if isinstance(pooled_outputs, tuple):
+            pooled_output = pooled_outputs[0]
+            model_probe_output = pooled_outputs[1]
+        else:
+            model_probe_output = None
+            pooled_output = pooled_outputs
+
 
         if not return_dict:
             return (sequence_output, pooled_output) + encoder_outputs[1:]
@@ -1040,7 +1058,8 @@ class BertModel(BertPreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
             cross_attentions=encoder_outputs.cross_attentions,
-            head_probe_output = encoder_outputs.head_probe_output
+            head_probe_output = encoder_outputs.head_probe_output,
+            model_probe_output=model_probe_output
         )
 
 

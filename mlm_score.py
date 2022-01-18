@@ -195,7 +195,7 @@ def main(
     do_combined=True,
     device_id=0):
 
-    data_root = Path(f'experiments/MLM/{task.name}')
+    data_root = Path(f'experiments/{task.name}')
     mlm_scores_out_file = Path(f'mlm_scores/{task.name}/{model_name}/scores.npy')
     n_words_path = Path(f'mlm_scores/{task.name}/n_words.csv')
 
@@ -217,29 +217,32 @@ def main(
             results = np.zeros((len(datasets),))
         
         # load model.
-        print(f'loading ckpt from {model_ckpt}.')
-        state_dict = torch.load(model_ckpt)
-        if not is_huggingface_ckpt:
-            if 'optimizer' in state_dict:
-                del state_dict['optimizer']
-                del state_dict['config']
-                state_dict = state_dict['state']
+        if model_ckpt != '':
+            print(f'loading ckpt from {model_ckpt}.')
+            state_dict = torch.load(model_ckpt)
+            if not is_huggingface_ckpt:
+                if 'optimizer' in state_dict:
+                    del state_dict['optimizer']
+                    del state_dict['config']
+                    state_dict = state_dict['state']
 
-                for param in [
-                    "scoring_list.0.weight",
-                    "scoring_list.0.bias",
-                    "pooler.dense.weight",
-                    "pooler.dense.bias",
-                    "bert.pooler.dense.weight",
-                    "bert.pooler.dense.bias"
-                ]:
-                    del state_dict[param]
+                    for param in [
+                        "scoring_list.0.weight",
+                        "scoring_list.0.bias",
+                        "pooler.dense.weight",
+                        "pooler.dense.bias",
+                        "bert.pooler.dense.weight",
+                        "bert.pooler.dense.bias"
+                    ]:
+                        del state_dict[param]
+        else:
+            state_dict = None
 
         if do_individual:
             for i, dataset in enumerate(datasets):
-                print(f'Evaluating mlm for {model_name} on {dataset}.')
+                print(f'Evaluating mlm for {model_name} on {dataset} [{task.name}].')
 
-                data_file = data_root.joinpath(f'{dataset}/{task.name.lower()}_test.json')
+                data_file = data_root.joinpath(f'{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json')
                 scores_for_dataset_out_file = Path(f'mlm_scores/{task.name}').joinpath(model_name, f'{dataset}_scores.pkl')
 
                 start = time()
@@ -345,7 +348,7 @@ if __name__ == '__main__':
         ]
         main(
             task,
-            'NLI_all-lang_test',
+            'NLI_all-lang_test_2',
             args.model_ckpt,
             args.huggingface_ckpt,
             datasets,
@@ -368,7 +371,10 @@ if __name__ == '__main__':
         # )
         
     else: 
-        model_name = Path(args.model_ckpt).parent.name
+        if args.model_ckpt != '':
+            model_name = Path(args.model_ckpt).parent.name
+        else:
+            model_name = 'mBERT'
         # model_name = f'{task.name}_EN-FR-DE-ES'
         main(
             task,

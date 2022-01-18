@@ -402,6 +402,10 @@ def main():
                         "pooler.dense.weight",
                         "pooler.dense.bias"
                     ]
+                num_tasks = len(task_def_list)
+                for i in range(num_tasks):
+                    params_to_add.extend([f"scoring_list.{i}.weight", f"scoring_list.{i}.bias"])
+
                 for param_name in params_to_add:
                     state_dict[param_name] = _init_state_dict[param_name]
                 
@@ -423,35 +427,6 @@ def main():
             save_all_kqv(model, output_dir=f'/home/june/mt-dnn/kqv/finetuned/{task_name}')
 
         return
-    
-    if args.mlm_scoring:
-        from mlm_score import mlm_score
-        task_name = args.train_datasets[0]
-
-        # pretrained
-        if not Path('/home/june/mt-dnn/mlm/pretrained').is_dir():
-            for i, (batch_meta, batch_data) in enumerate(multi_task_train_dataloader):
-                mlm_score(model, output_dir='/home/june/mt-dnn/kqv/pretrained')
-
-        # finetuned
-        if not Path(f'/home/june/mt-dnn/kqv/finetuned/{task_name}').is_dir():
-            model.load(args.model_ckpt)
-            mlm_score(model, output_dir=f'/home/june/mt-dnn/kqv/finetuned/{task_name}')
-
-        return
-    
-    if args.mlm_finetune:
-        # freeze bert parameters
-        for p in model.network.parameters():
-            p.requires_grad = False
-
-        # and unfreeze the MLM head
-        assert hasattr(model.network, 'mask_lm_header')
-        for p in model.network.mask_lm_header.parameters():
-            p.requires_grad = True
-
-        init_epoch_idx = 0
-        init_global_step = 0
 
     if args.head_probe:
         print_message(logger, f'attached head probe at layer #{args.head_probe_layer+1}, head #{args.head_probe_idx+1}')

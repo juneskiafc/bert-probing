@@ -108,7 +108,6 @@ def make_mlm_data_from_pawsx(out_file):
         return
 
     tmp_out_file = 'experiments/PAWSX/multi/pawsx_train_tmp.json'
-
     df = Dataset.from_json(str(tmp_out_file))
     with open(out_file, 'w', encoding='utf-8') as f:
         for i, row in enumerate(df):
@@ -154,7 +153,7 @@ def make_mlm_data(task: Experiment):
     elif task is Experiment.POS:
         make_mlm_data_from_pos(out_dir.joinpath('multi/pos_train.txt'))
     elif task is Experiment.PAWSX:
-        make_mlm_data_from_pawsx(out_dir.joinpath('4lang_train.txt'))
+        make_mlm_data_from_pawsx(out_dir.joinpath('multi/pawsx_train.txt'))
     elif task is Experiment.MARC:
         make_mlm_data_from_marc(out_dir.joinpath('4lang_train.txt'))
     elif task is Experiment.NER:
@@ -168,7 +167,7 @@ if __name__ == '__main__':
     # make_mlm_json(MULTI_TEST, MULTI_TEST_OUT)
 
     for task in list(Experiment):
-        if task is Experiment.POS:
+        if task is Experiment.PAWSX:
             make_mlm_data(task)
 
 
