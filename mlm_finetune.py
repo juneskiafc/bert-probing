@@ -161,7 +161,6 @@ def main():
 
     # env variables
     os.environ['WANDB_PROJECT'] = 'soroush'
-
     training_args.disable_tqdm = True
     training_args.num_train_epochs = 6
     training_args.do_train = True
@@ -208,7 +207,7 @@ def main():
 
     # Load pretrained model and tokenizer
     config = AutoConfig.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name, cache_dir=model_args.cache_dir)
 
     model = AutoModelWithLMHead.from_pretrained(
         model_args.model_name_or_path,
