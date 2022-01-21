@@ -402,7 +402,6 @@ def main():
 
             model.load_state_dict(state_dict)
 
-
     if args.head_probe:
         print_message(logger, f'attached head probe at layer #{args.head_probe_layer+1}, head #{args.head_probe_idx+1}')
         opt['head_idx_to_probe'] = (args.head_probe_layer, args.head_probe_idx)
@@ -423,6 +422,8 @@ def main():
             args.head_probe_layer,
             args.head_probe_idx,
             n_classes=args.head_probe_n_classes)
+        optimizer_parameters = model._get_param_groups()
+        model._setup_optim(optimizer_parameters, None, num_all_batches)
     
         init_epoch_idx = 0
         init_global_step = 0

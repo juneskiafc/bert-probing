@@ -6,6 +6,7 @@ import sys
 sys.path.append('/home/june/mt-dnn/')
 from experiments.exp_def import Experiment, LingualSetting
 from datasets import Dataset
+from argparse import ArgumentParser
 from conllu import parse_incr
 from argparse import ArgumentParser
 
@@ -136,11 +137,11 @@ def make_mlm_data_from_pawsx(setting, out_file, separate_premise_hypothesis=True
                 f.write(sent)
                 f.write('\n')
 
-def make_mlm_data_from_marc(out_file):
+def make_mlm_data_from_marc(setting, out_file):
     if Path(out_file).is_file():
         return
 
-    tmp_out_file = 'experiments/MARC/multi/marc_train_tmp.json'
+    tmp_out_file = f'experiments/MARC/{setting.name.lower()}/marc_train_tmp.json'
 
     df = Dataset.from_json(str(tmp_out_file))
     with open(out_file, 'w', encoding='utf-8') as f:
@@ -181,7 +182,7 @@ def make_mlm_data(task: Experiment, setting: LingualSetting, separate_multiple_s
             separate_premise_hypothesis=separate_multiple_sentences_per_example)
 
     elif task is Experiment.MARC:
-        make_mlm_data_from_marc(out_dir.joinpath('multi/marc_train.txt'))
+        make_mlm_data_from_marc(setting, out_dir.joinpath(f'{setting.name.lower()}/marc_train.txt'))
     elif task is Experiment.NER:
         make_mlm_data_from_ner(out_dir.joinpath('4lang_train.txt'))
 
