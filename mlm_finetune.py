@@ -139,7 +139,6 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
-    device_id: str = field(default='0')
 
 def get_dataset(
     args: DataTrainingArguments,
@@ -162,7 +161,6 @@ def main():
 
     # env variables
     os.environ['WANDB_PROJECT'] = 'soroush'
-
     training_args.disable_tqdm = True
     training_args.num_train_epochs = 6
     training_args.do_train = True
@@ -224,7 +222,7 @@ def main():
     )
     
     if model_args.mtdnn_checkpoint != '':
-        mtdnn = torch.load(model_args.mtdnn_checkpoint, map_location=f'cuda:{data_args.device_id}')['state']
+        mtdnn = torch.load(model_args.mtdnn_checkpoint, map_location=f'cuda:{data_args.device}')['state']
         # these are leftovers from NLI finetuning, get rid
         for param in [
             'bert.pooler.dense.weight',
