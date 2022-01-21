@@ -4,9 +4,11 @@ import json
 import jsonlines
 import sys
 sys.path.append('/home/june/mt-dnn/')
-from experiments.exp_def import Experiment
+from experiments.exp_def import Experiment, LingualSetting
 from datasets import Dataset
 from conllu import parse_incr
+from argparse import ArgumentParser
+
 
 ROOT = Path('experiments/NLI/')
 OUT_ROOT = Path('experiments/MLM/')
@@ -63,7 +65,7 @@ def make_mlm_data_from_raw_mnli(out_file):
                     fw.write(sent)
                     fw.write("\n")
 
-def make_mlm_data_from_raw_xnli_dev(out_file, languages=None):
+def make_mlm_data_from_raw_xnli_dev(setting, out_file, languages=None, separate_premise_hypothesis=True):
     if Path(out_file).is_file():
         return
     
@@ -71,6 +73,9 @@ def make_mlm_data_from_raw_xnli_dev(out_file, languages=None):
     xnli_dev_path = raw_nli_data_path.joinpath('xnli.dev.jsonl')
 
     Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+
+    if setting is LingualSetting.CROSS:
+        languages = ['en']
 
     with open(out_file, 'w', encoding='utf-8') as fw:
         with jsonlines.open(xnli_dev_path) as fr:
@@ -82,9 +87,14 @@ def make_mlm_data_from_raw_xnli_dev(out_file, languages=None):
                     premise = row['sentence1']
                     hypo = row['sentence2']
                     
-                    for sent in [premise, hypo]:
+                    if separate_premise_hypothesis:
+                        for sent in [premise, hypo]:
+                            fw.write(sent)
+                            fw.write("\n")
+                    else:
+                        sent = f'{premise} [SEP] {hypo}'
                         fw.write(sent)
-                        fw.write("\n")
+                        fw.write('\n')
 
 def make_mlm_data_from_pos(out_file):
     DATA_ROOT = Path('/home/june/mt-dnn/experiments/POS/data')
@@ -103,18 +113,26 @@ def make_mlm_data_from_pos(out_file):
                     fw.write(tokenlist.metadata['text'])
                     fw.write('\n')
 
-def make_mlm_data_from_pawsx(out_file):
+def make_mlm_data_from_pawsx(setting, out_file, separate_premise_hypothesis=True):
     if Path(out_file).is_file():
         return
-
-    tmp_out_file = 'experiments/PAWSX/multi/pawsx_train_tmp.json'
+    else:
+        Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+    
+    tmp_out_file = f'experiments/PAWSX/{setting.name.lower()}/pawsx_train_tmp.json'
     df = Dataset.from_json(str(tmp_out_file))
+
     with open(out_file, 'w', encoding='utf-8') as f:
         for i, row in enumerate(df):
             premise = row['sentence1']
             hypo = row['sentence2']
 
-            for sent in [premise, hypo]:
+            if separate_premise_hypothesis:
+                for sent in [premise, hypo]:
+                    f.write(sent)
+                    f.write("\n")
+            else:
+                sent = f'{premise} [SEP] {hypo}'
                 f.write(sent)
                 f.write('\n')
 
@@ -143,32 +161,50 @@ def make_mlm_data_from_ner(out_file):
             f.write(premise)
             f.write('\n')
 
-def make_mlm_data(task: Experiment):
+def make_mlm_data(task: Experiment, setting: LingualSetting, separate_multiple_sentences_per_example=True):
     out_dir = Path('experiments/MLM').joinpath(task.name)
     out_dir.mkdir(parents=True, exist_ok=True)
     
     if task is Experiment.NLI:
-        make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('15lang_train.txt'))
-        make_mlm_data_from_raw_xnli_dev(out_dir.joinpath('4lang_train.txt'), languages=['en', 'fr', 'de', 'es'])
+        make_mlm_data_from_raw_xnli_dev(
+            setting,
+            out_dir.joinpath('multi/nli_train.txt'),
+            separate_premise_hypothesis=separate_multiple_sentences_per_example)
+    
     elif task is Experiment.POS:
         make_mlm_data_from_pos(out_dir.joinpath('multi/pos_train.txt'))
+
     elif task is Experiment.PAWSX:
-        make_mlm_data_from_pawsx(out_dir.joinpath('multi/pawsx_train.txt'))
+        make_mlm_data_from_pawsx(
+            setting,
+            out_dir.joinpath(f'{setting.name.lower()}/pawsx_train.txt'),
+            separate_premise_hypothesis=separate_multiple_sentences_per_example)
+
     elif task is Experiment.MARC:
         make_mlm_data_from_marc(out_dir.joinpath('multi/marc_train.txt'))
     elif task is Experiment.NER:
         make_mlm_data_from_ner(out_dir.joinpath('4lang_train.txt'))
 
 if __name__ == '__main__':
-    # make_mlm_data_from_raw_mnli('experiments/MLM/NLI/cross/cross_train.txt')
-    # make_mlm_json(CROSS_TRAIN, CROSS_TRAIN_OUT)
-    # make_mlm_json(MULTI_TRAIN, MULTI_TRAIN_OUT)
-    # make_mlm_json(CROSS_TEST, CROSS_TEST_OUT)
-    # make_mlm_json(MULTI_TEST, MULTI_TEST_OUT)
+    parser = ArgumentParser()
+    parser.add_argument('--task', type=str, default='')
+    parser.add_argument('--setting', type=str, default='')
+    parser.add_argument("--separate", action='store_true')
+    args = parser.parse_args()
+    
+    if args.task == '':
+        tasks = list(Experiment)
+    else:
+        tasks = [Experiment[args.task.upper()]]
 
-    for task in list(Experiment):
-        if task is Experiment.MARC:
-            make_mlm_data(task)
+    if args.setting == '':
+        settings = [LingualSetting.MULTI]
+    else:
+        settings = [LingualSetting[args.setting.upper()]]
+    
+    for task in tasks:
+        for setting in settings:
+            make_mlm_data(task, setting, args.separate)
 
 
             

@@ -101,12 +101,12 @@ def construct_model(checkpoint: str, task: Experiment, task_def_path: str, devic
     config['device'] = device_id
     del state_dict['optimizer']
 
-    state_dict['state']['scoring_list.0.weight'] = state_dict['state']['scoring_list.1.weight']
-    state_dict['state']['scoring_list.0.bias'] = state_dict['state']['scoring_list.1.bias']
+    # state_dict['state']['scoring_list.0.weight'] = state_dict['state']['scoring_list.1.weight']
+    # state_dict['state']['scoring_list.0.bias'] = state_dict['state']['scoring_list.1.bias']
 
-    # remove non pertinent scoring lists.
-    for param in ['scoring_list.1.weight', 'scoring_list.1.bias', 'scoring_list.2.weight', 'scoring_list.2.bias']:
-        del state_dict['state'][param]
+    # # remove non pertinent scoring lists.
+    # for param in ['scoring_list.1.weight', 'scoring_list.1.bias', 'scoring_list.2.weight', 'scoring_list.2.bias']:
+    #     del state_dict['state'][param]
 
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
@@ -253,6 +253,6 @@ if __name__ == '__main__':
         column_labels=[task.name],
         xaxlabel='',
         yaxlabel='languages',
-        out_file=f'evaluation_results/{task.name}',
+        out_file=results_out_file.with_suffix('.pdf'),
         figsize=(5, 14)
     )

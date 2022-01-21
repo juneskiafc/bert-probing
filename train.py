@@ -43,15 +43,6 @@ def model_config(parser):
     # model probing
     parser.add_argument('--model_probe', action='store_true')
     parser.add_argument('--model_probe_n_classes', type=int)
-
-    # kqv probing
-    parser.add_argument('--kqv_probing', action='store_true')
-
-    # mlm scoring
-    parser.add_argument('--mlm_scoring', action='store_true')
-
-    # mlm finetuning, DEPRECATED
-    parser.add_argument('--mlm_finetune', action='store_true')
     ##############
 
     # DON"T NEED THESE
@@ -359,7 +350,7 @@ def main():
         devices=args.devices,
         num_train_step=num_all_batches)
     
-    if not (args.kqv_probing or args.mlm_scoring or args.mlm_finetune or args.head_probe or args.model_probe):
+    if not (args.head_probe or args.model_probe):
         if state_dict is not None and args.resume:
             if args.huggingface_ckpt:
                 if args.bert_model_type == 'bert-base-multilingual-cased':
@@ -410,21 +401,7 @@ def main():
                 state_dict = {'state': state_dict}
 
             model.load_state_dict(state_dict)
-    
-    if args.kqv_probing:
-        from examine_kqv import save_all_kqv
-        task_name = args.train_datasets[0]
 
-        # pretrained
-        if not Path('/home/june/mt-dnn/kqv/pretrained').is_dir():
-            save_all_kqv(model, output_dir='/home/june/mt-dnn/kqv/pretrained')
-
-        # finetuned
-        if not Path(f'/home/june/mt-dnn/kqv/finetuned/{task_name}').is_dir():
-            model.load(args.model_ckpt)
-            save_all_kqv(model, output_dir=f'/home/june/mt-dnn/kqv/finetuned/{task_name}')
-
-        return
 
     if args.head_probe:
         print_message(logger, f'attached head probe at layer #{args.head_probe_layer+1}, head #{args.head_probe_idx+1}')
