@@ -6,8 +6,13 @@ from experiments.exp_def import LingualSetting
 
 def _prepare_data(train_langs, test_langs, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    for split in ['train', 'test']:
+    splits = []
+    if train_langs is not None:
+        splits.append('train')
+    if test_langs is not None:
+        splits.append('test')
+    
+    for split in splits:
         out_file = out_dir.joinpath(f'pawsx_{split}_tmp.json')
         final_out_file = out_dir.joinpath(f'pawsx_{split}.tsv')
 
@@ -51,7 +56,9 @@ def prepare_finetune_data():
         _prepare_data(train_langs, test_langs, out_dir)
 
 if __name__ == '__main__':
-    prepare_finetune_data()
+    for lang in ['fr']:
+        out_dir = Path(f'experiments/PAWSX/{lang}')
+        _prepare_data([lang], None, out_dir)
 
 
 

@@ -10,5 +10,5 @@ nli:
   - ACC
   n_class: 3
   split_names:
-  - test
+  - train
   task_type: Classification
