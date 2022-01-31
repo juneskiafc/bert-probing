@@ -2,8 +2,8 @@ from pathlib import Path
 import pandas as pd
 
 all_data = []
-model_name = 'POS_multi'
-root = Path(f'model_probe_outputs/cross_training/{model_name}')
+model_name = 'mBERT'
+root = Path(f'model_probe_outputs/{model_name}')
 for task in ['NLI', 'POS', 'NER', 'PAWSX', 'MARC']:
     data = []
     for seed in range(3):

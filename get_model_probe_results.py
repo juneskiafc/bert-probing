@@ -108,7 +108,7 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         assert os.path.exists(checkpoint), checkpoint
     else:
         # dummy.
-        checkpoint_dir = Path('checkpoint').joinpath(f'POS_multi')
+        checkpoint_dir = Path('checkpoint').joinpath(f'POS_cross')
         checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
 
     state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
@@ -204,7 +204,7 @@ def evaluate_model_probe(
     if finetuned_task is not None:
         print(f'\n{finetuned_task.name}_{finetuned_setting.name.lower()} -> {downstream_task.name}, {probe_setting.name.lower()}_head_training')
     else:
-        print(f'\nmBERT -> {downstream_task.name}, {probe_setting.name.lower()}')
+        print(f'\nmBERT -> {downstream_task.name}, probe setting: {probe_setting.name.lower()}')
     
     # load state dict for the attention head
     if model_ckpt is None: 
