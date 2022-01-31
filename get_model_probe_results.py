@@ -69,7 +69,7 @@ def create_heatmap(
     fig = heatmap.get_figure()
     fig.savefig(Path(out_file).with_suffix('.pdf'), bbox_inches='tight')
 
-def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def, device_id):
+def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def):
     test_data_set = SingleTaskDataset(
         path=data_path,
         is_train=False,
@@ -84,7 +84,7 @@ def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def, de
         test_data_set,
         batch_size=batch_size,
         collate_fn=collater.collate_fn,
-        pin_memory=device_id > 0
+        pin_memory=True
     )
 
     return test_data
@@ -108,10 +108,10 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         assert os.path.exists(checkpoint), checkpoint
     else:
         # dummy.
-        checkpoint_dir = Path('checkpoint').joinpath(f'NER_multi')
+        checkpoint_dir = Path('checkpoint').joinpath(f'POS_multi')
         checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
 
-    state_dict = torch.load(checkpoint)
+    state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
     config = state_dict['config']
 
     config['fp16'] = False
@@ -163,6 +163,7 @@ def evaluate_model_probe(
     finetuned_task: Union[Experiment, None],
     finetuned_setting: LingualSetting,
     probe_setting: LingualSetting,
+    model_ckpt: str,
     metric: str,
     batch_size: int=8,
     max_seq_len: int=512,
@@ -191,8 +192,7 @@ def evaluate_model_probe(
         EncoderModelType.BERT,
         batch_size,
         max_seq_len,
-        task_def,
-        device_id)
+        task_def)
 
     model = construct_model(
         finetuned_task,
@@ -207,25 +207,28 @@ def evaluate_model_probe(
         print(f'\nmBERT -> {downstream_task.name}, {probe_setting.name.lower()}')
     
     # load state dict for the attention head
-    if finetuned_task is not None:
-        state_dict_for_head = Path('checkpoint').joinpath(
-            'full_model_probe',
-            f'{probe_setting.name.lower()}_head_training',
-            finetuned_task.name,
-            finetuned_setting.name.lower(),
-            downstream_task.name,
-        )
+    if model_ckpt is None: 
+        if finetuned_task is not None:
+            state_dict_for_head = Path('checkpoint').joinpath(
+                'full_model_probe',
+                f'{probe_setting.name.lower()}_head_training',
+                finetuned_task.name,
+                finetuned_setting.name.lower(),
+                downstream_task.name,
+            )
+        else:
+            state_dict_for_head = Path('checkpoint').joinpath(
+                'full_model_probe',
+                f'{probe_setting.name.lower()}_head_training',
+                'mBERT',
+                downstream_task.name,
+            )
+        state_dict_for_head = list(state_dict_for_head.rglob("*.pt"))[0]
     else:
-        state_dict_for_head = Path('checkpoint').joinpath(
-            'full_model_probe',
-            f'{probe_setting.name.lower()}_head_training',
-            'mBERT',
-            downstream_task.name,
-        )
+        state_dict_for_head = Path(model_ckpt)
 
     print(f'loading from {state_dict_for_head}')
-    state_dict_for_head = list(state_dict_for_head.rglob("*.pt"))[0]
-    state_dict_for_head = torch.load(state_dict_for_head)['state']
+    state_dict_for_head = torch.load(state_dict_for_head, map_location=f'cuda:{device_id}')['state']
 
     # then attach the probing layer
     model.attach_model_probe(task_def.n_class)
@@ -237,13 +240,9 @@ def evaluate_model_probe(
     # and load (put it on same device)
     weight = state_dict_for_head[f'bert.pooler.model_probe_head.weight']
     bias = state_dict_for_head[f'bert.pooler.model_probe_head.bias']
-    
-    # weight_save_path = Path(f'debug/{probe_setting.name.lower()}_head_training/{finetuned_task.name}/{downstream_task.name}.pt')
-    # weight_save_path.parent.mkdir(parents=True, exist_ok=True)
-    # torch.save(weight, weight_save_path)
 
-    layer.model_probe_head.weight = nn.Parameter(weight.to(device_id))
-    layer.model_probe_head.bias = nn.Parameter(bias.to(device_id))
+    layer.model_probe_head.weight = nn.Parameter(weight)
+    layer.model_probe_head.bias = nn.Parameter(bias)
 
     # compute acc and save
     acc = get_acc(model, test_data, metric_meta, device_id, model_probe=True)
@@ -315,6 +314,9 @@ def get_model_probe_scores(
     finetuned_task: Experiment,
     finetuned_setting: LingualSetting,
     probe_setting: LingualSetting,
+    probe_task: Experiment,
+    model_ckpt: str,
+    out_file_name: str,
     metric: str,
     device_id: int,
     batch_size: int = 8,
@@ -329,7 +331,7 @@ def get_model_probe_scores(
     results_out_file = Path(f'model_probe_outputs').joinpath(
         f'{probe_setting.name.lower()}_training',
         model_name,
-        'results.csv')
+        f'{out_file_name}.csv')
 
     if results_out_file.is_file():
         print(f'{results_out_file} already exists.')
@@ -338,8 +340,10 @@ def get_model_probe_scores(
         print(results_out_file.parent)
         results_out_file.parent.mkdir(parents=True, exist_ok=True)
     
-    tasks = list(Experiment)
-    tasks.remove(Experiment.NLI)
+    if probe_task is None:
+        tasks = list(Experiment)
+    else:
+        tasks = [probe_task]
 
     results = pd.DataFrame(np.zeros((1, len(tasks))))
     results.index = [model_name]
@@ -351,6 +355,7 @@ def get_model_probe_scores(
             finetuned_task,
             finetuned_setting,
             probe_setting,
+            model_ckpt,
             metric,
             batch_size,
             max_seq_len,
@@ -369,20 +374,26 @@ if __name__ == '__main__':
     parser.add_argument('--finetuned_task', type=str, default='NLI')
     parser.add_argument('--finetuned_setting', type=str, default='multi')
     parser.add_argument('--probe_setting', type=str, default='cross')
+    parser.add_argument('--probe_task', type=str, default='')
+    parser.add_argument('--model_ckpt', type=str, default='')
+    parser.add_argument('--out_file_name', type=str, default='results.csv')
     parser.add_argument('--metric', type=str, default='F1MAC')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
     
-    # get_model_probe_scores(
-    #     Experiment[args.finetuned_task],
-    #     LingualSetting[args.finetuned_setting.upper()],
-    #     LingualSetting[args.probe_setting.upper()],
-    #     args.metric,
-    #     args.device_id,
-    #     args.batch_size,
-    #     args.max_seq_len
-    # )
+    get_model_probe_scores(
+        Experiment[args.finetuned_task],
+        LingualSetting[args.finetuned_setting.upper()],
+        LingualSetting[args.probe_setting.upper()],
+        Experiment[args.probe_task] if args.probe_task != '' else None,
+        args.model_ckpt if args.model_ckpt != '' else None,
+        args.out_file_name,
+        args.metric,
+        args.device_id,
+        args.batch_size,
+        args.max_seq_len
+    )
 
     # get_model_probe_final_score(
     #     Experiment[args.finetuned_task],

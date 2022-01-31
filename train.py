@@ -429,7 +429,8 @@ def main():
         init_global_step = 0
     
     if args.model_probe:
-        print_message(logger, 'probing whole model.')
+        print_message(logger, 'probing whole model. Setting n_epochs to 2.')
+        args.epochs = 2
 
         # freeze all params
         for p in model.network.parameters():

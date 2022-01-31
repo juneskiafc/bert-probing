@@ -11,4 +11,5 @@ nli:
   n_class: 3
   split_names:
   - train
+  - test
   task_type: Classification
