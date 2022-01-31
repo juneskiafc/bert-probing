@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 
 all_data = []
-model_name = 'POS_multi'
+model_name = 'NER_multi'
 root = Path(f'model_probe_outputs/cross_training/{model_name}')
 for task in ['NLI', 'POS', 'NER', 'PAWSX', 'MARC']:
     data = []

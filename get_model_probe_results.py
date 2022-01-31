@@ -371,8 +371,8 @@ def get_model_probe_scores(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--device_id', type=int, default=0)
-    parser.add_argument('--finetuned_task', type=str, default='NLI')
-    parser.add_argument('--finetuned_setting', type=str, default='multi')
+    parser.add_argument('--finetuned_task', type=str, default='')
+    parser.add_argument('--finetuned_setting', type=str, default='')
     parser.add_argument('--probe_setting', type=str, default='cross')
     parser.add_argument('--probe_task', type=str, default='')
     parser.add_argument('--model_ckpt', type=str, default='')
@@ -382,18 +382,27 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
     
-    get_model_probe_scores(
-        Experiment[args.finetuned_task],
-        LingualSetting[args.finetuned_setting.upper()],
-        LingualSetting[args.probe_setting.upper()],
-        Experiment[args.probe_task] if args.probe_task != '' else None,
-        args.model_ckpt if args.model_ckpt != '' else None,
-        args.out_file_name,
-        args.metric,
-        args.device_id,
-        args.batch_size,
-        args.max_seq_len
-    )
+    for task in ['MARC', 'NER', 'NLI', 'POS', 'PAWSX']:
+        for seed in range(3):
+            model_ckpt = Path(f'checkpoint/{args.finetuned_task}_{args.finetuned_setting}-{task}-model_probe_seed{seed}')
+            model_ckpt = list(model_ckpt.rglob('*.pt'))[0]
+            out_file = f'{task}_results_{seed}'
+
+            get_model_probe_scores(
+                Experiment[args.finetuned_task],
+                LingualSetting[args.finetuned_setting.upper()],
+                LingualSetting[args.probe_setting.upper()],
+                # Experiment[args.probe_task] if args.probe_task != '' else None,
+                Experiment[task],
+                # args.model_ckpt if args.model_ckpt != '' else None,
+                model_ckpt,
+                # args.out_file_name,
+                out_file,
+                args.metric,
+                args.device_id,
+                args.batch_size,
+                args.max_seq_len
+            )
 
     # get_model_probe_final_score(
     #     Experiment[args.finetuned_task],
