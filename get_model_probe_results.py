@@ -108,7 +108,7 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         assert os.path.exists(checkpoint), checkpoint
     else:
         # dummy.
-        checkpoint_dir = Path('checkpoint').joinpath(f'POS_multi')
+        checkpoint_dir = Path('checkpoint').joinpath(f'NLI_multi')
         checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
 
     state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
@@ -382,32 +382,32 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
     
-    for task in ['MARC', 'NER', 'NLI', 'POS', 'PAWSX']:
-        for seed in range(3):
-            model_ckpt = Path(f'checkpoint/{args.finetuned_task}_{args.finetuned_setting}-{task}-model_probe_seed{seed}')
-            model_ckpt = list(model_ckpt.rglob('*.pt'))[0]
-            out_file = f'{task}_results_{seed}'
+    # for task in ['MARC', 'NER', 'POS', 'PAWSX']:
+    #     # for seed in range(3):
+    #     # model_ckpt = Path(f'checkpoint/multi_head_training/{args.finetuned_task}/{args.finetuned_setting}/{task}')
+    #     # model_ckpt = list(model_ckpt.rglob('*.pt'))[0]
+    #     out_file = f'{task}_results'
 
-            get_model_probe_scores(
-                Experiment[args.finetuned_task],
-                LingualSetting[args.finetuned_setting.upper()],
-                LingualSetting[args.probe_setting.upper()],
-                # Experiment[args.probe_task] if args.probe_task != '' else None,
-                Experiment[task],
-                # args.model_ckpt if args.model_ckpt != '' else None,
-                model_ckpt,
-                # args.out_file_name,
-                out_file,
-                args.metric,
-                args.device_id,
-                args.batch_size,
-                args.max_seq_len
-            )
+    #     get_model_probe_scores(
+    #         Experiment[args.finetuned_task],
+    #         LingualSetting[args.finetuned_setting.upper()],
+    #         LingualSetting[args.probe_setting.upper()],
+    #         # Experiment[args.probe_task] if args.probe_task != '' else None,
+    #         Experiment[task],
+    #         args.model_ckpt if args.model_ckpt != '' else None,
+    #         # model_ckpt,
+    #         # args.out_file_name,
+    #         out_file,
+    #         args.metric,
+    #         args.device_id,
+    #         args.batch_size,
+    #         args.max_seq_len
+    #     )
 
-    # get_model_probe_final_score(
-    #     Experiment[args.finetuned_task],
-    #     LingualSetting[args.finetuned_setting.upper()],
-    #     LingualSetting[args.probe_setting.upper()]
-    # )
+    get_model_probe_final_score(
+        Experiment[args.finetuned_task],
+        LingualSetting[args.finetuned_setting.upper()],
+        LingualSetting[args.probe_setting.upper()]
+    )
 
     # combine_all_model_probe_scores()

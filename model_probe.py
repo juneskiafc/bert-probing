@@ -5,7 +5,7 @@ from experiments.exp_def import (
     LingualSetting,
 )
 
-model = 'PAWSX'
+model = 'NLI'
 task_to_n_classes = {
     'NLI': 3,
     'POS': 17,
