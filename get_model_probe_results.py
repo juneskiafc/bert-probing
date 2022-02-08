@@ -204,7 +204,7 @@ def evaluate_model_probe(
     if finetuned_task is not None:
         print(f'\n{finetuned_task.name}_{finetuned_setting.name.lower()} -> {downstream_task.name}, {probe_setting.name.lower()}_head_training')
     else:
-        print(f'\nmBERT -> {downstream_task.name}, {probe_setting.name.lower()}')
+        print(f'\nmBERT -> {downstream_task.name}, probe setting: {probe_setting.name.lower()}')
     
     # load state dict for the attention head
     if model_ckpt is None: 
@@ -249,28 +249,49 @@ def evaluate_model_probe(
         
     return acc
 
-def combine_all_model_probe_scores():
-    combined_results = None
+def combine_all_model_probe_scores(mean=True, std=True):
+    combined_results = []
+    combined_std = []
 
     for task in list(Experiment):
         for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:  
-            result_for_task = f'model_probe_outputs/cross_training/{task.name}_{setting.name.lower()}/evaluation_results.csv'
+            result_for_task = f'model_probe_outputs/{task.name}_{setting.name.lower()}/evaluation_results.csv'
             result_for_task = pd.read_csv(result_for_task, index_col=0)
+            model_name = f'{task.name}_{setting.name.lower()}'
 
-            if combined_results is None:
-                combined_results = result_for_task
+            if mean:
+                result_for_task_mean_across_seeds = pd.DataFrame(result_for_task.mean(axis=0)).T
+                result_for_task_mean_across_seeds.index = [model_name]
+                combined_results.append(result_for_task_mean_across_seeds)
             else:
-                combined_results = pd.concat([combined_results, result_for_task], axis=0)
-    
-    combined_results.to_csv('model_probe_outputs/final_result.csv')
-    create_heatmap(
-        data_df=combined_results,
-        row_labels=list(combined_results.index),
-        column_labels=list(combined_results.columns),
-        xaxlabel='task',
-        yaxlabel='model',
-        out_file=f'model_probe_outputs/final_result'
-    )
+                combined_results.append(result_for_task)
+            
+            if std:
+                result_for_task_std_across_seeds = pd.DataFrame(result_for_task.std(axis=0)).T
+                result_for_task_std_across_seeds.index = [model_name]
+                combined_std.append(result_for_task_std_across_seeds)
+
+    for i, df in enumerate([combined_results, combined_std]):
+        if len(df) > 0:
+            combined_df = pd.concat(df, axis=0)
+            if i == 0:
+                if mean:
+                    out_file_name = 'model_probe_outputs/final_result.csv'
+                else:
+                    out_file_name = 'model_probe_outputs/final_result_mean.csv'
+            else:
+                if std:
+                    out_file_name = 'model_probe_outputs/final_result_std.csv'
+            
+            combined_df.to_csv(out_file_name)
+            create_heatmap(
+                data_df=combined_df,
+                row_labels=list(combined_df.index),
+                column_labels=list(combined_df.columns),
+                xaxlabel='task',
+                yaxlabel='model',
+                out_file=Path(out_file_name).with_suffix('')
+            )
 
 def get_model_probe_final_score(
     finetuned_task: Experiment,
@@ -278,36 +299,36 @@ def get_model_probe_final_score(
     probe_setting: LingualSetting):
 
     final_results_out_file = Path(f'model_probe_outputs').joinpath(
-        f'{probe_setting.name.lower()}_training',
+        # f'{probe_setting.name.lower()}_training',
         f'{finetuned_task.name}_{finetuned_setting.name.lower()}',
         'evaluation_results.csv')
 
     result_path_for_finetuned_model = final_results_out_file.parent.joinpath('results.csv')
     
     result_path_for_mBERT = Path(f'model_probe_outputs').joinpath(
-            f'{probe_setting.name.lower()}_training',
+            # f'{probe_setting.name.lower()}_training',
             f'mBERT',
             'results.csv')
     
     finetuned_results = pd.read_csv(result_path_for_finetuned_model, index_col=0)
     mBERT_results = pd.read_csv(result_path_for_mBERT, index_col=0)
 
-    print(finetuned_results)
-    print(mBERT_results)
+    # print(finetuned_results)
+    # print(mBERT_results)
 
     final_results = pd.DataFrame(finetuned_results.values - mBERT_results.values)
     final_results.index = finetuned_results.index
     final_results.columns = finetuned_results.columns
     final_results.to_csv(final_results_out_file)
 
-    create_heatmap(
-        data_df=final_results,
-        row_labels=finetuned_results.index,
-        column_labels=finetuned_results.columns,
-        xaxlabel='task',
-        yaxlabel='model',
-        out_file=final_results_out_file.with_suffix('')
-    )
+    # create_heatmap(
+    #     data_df=final_results,
+    #     row_labels=finetuned_results.index,
+    #     column_labels=finetuned_results.columns,
+    #     xaxlabel='task',
+    #     yaxlabel='model',
+    #     out_file=final_results_out_file.with_suffix('')
+    # )
 
 
 def get_model_probe_scores(
