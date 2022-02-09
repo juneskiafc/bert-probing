@@ -53,6 +53,7 @@ def compare_kqv(model_name, output_dir):
     finetuned_kqv_dir = output_dir.joinpath(f'{model_name}')
     pretrained_kqv_dir = output_dir.joinpath('mBERT')
     output_diffs_file = output_dir.joinpath(f'results/{model_name}_diffs.npy')
+    output_diffs_file.parent.mkdir(parents=True, exist_ok=True)
 
     if not output_diffs_file.is_file():
         diffs = np.zeros((12, 12))
@@ -190,13 +191,21 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default='')
     args = parser.parse_args()
 
-    # save_all_kqv(args.model_ckpt, args.output_dir)
-    for task in ['POS', 'NER', 'PAWSX', 'MARC']:
+    # for task in ['NER', 'POS']:
+    #     for setting in ['cross', 'multi']:
+    #         for seed in ['1', '2']:
+    #             args.model_ckpt = list(Path(f'checkpoint/{task}_{setting}_seed{seed}').rglob("*.pt"))[0]
+    #             save_all_kqv(args.model_ckpt, args.output_dir)
+
+    for task in ['NER']:
         for setting in ['cross', 'multi']:
-            compare_kqv(f'{task}_{setting}', args.output_dir)
-        compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
-    # for task in ['POS', 'NER', 'PAWSX', 'MARC']:
-    #     compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
+            for seed in range(3):
+                model_name = f'{task}_{setting}'
+                if seed > 0:
+                    model_name += f'_seed{seed}'
+                compare_kqv(model_name, args.output_dir)
+
+        # compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
 
     # rho_file = 'kqv_outputs/downstream_rho.csv'
     # data = []
