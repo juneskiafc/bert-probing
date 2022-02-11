@@ -159,6 +159,51 @@ class MTDNNModel(object):
     def __call__(self, inputs):
         logits, head_probe_logits = self.mnetwork(*inputs)
     
+    def get_update_gradients(self, batch_meta, batch_data):
+        self.network.train()
+        y = batch_data[batch_meta['label']]
+
+        task_id = batch_meta['task_id']
+        inputs = batch_data[:batch_meta['input_len']]
+        if len(inputs) == 3:
+            inputs.append(None)
+            inputs.append(None)
+        inputs.append(task_id)
+
+        if 'y_token_id' in batch_meta:
+            inputs.append(batch_data[batch_meta['y_token_id']])
+
+        weight = None
+        if self.config.get('weighted_on', False):
+            if self.config['cuda']:
+                weight = batch_data[batch_meta['factor']].cuda(non_blocking=True)
+            else:
+                weight = batch_data[batch_meta['factor']]
+
+        logits, head_probe_logits, model_probe_logits = self.mnetwork(*inputs)
+        
+        # compute loss
+        loss = 0
+        loss_criterion = self.task_loss_criterion[task_id]
+        if loss_criterion and (y is not None):
+            y.to(logits.device)
+            if head_probe_logits is None and model_probe_logits is None:
+                loss = loss_criterion(logits, y, weight, ignore_index=-1)
+            else:
+                if head_probe_logits is not None:
+                    loss = loss_criterion(head_probe_logits, y, weight, ignore_index=-1)
+                elif model_probe_logits is not None:
+                    loss = loss_criterion(model_probe_logits, y, weight, ignore_index=-1)
+                else:
+                    raise ValueError
+
+        batch_size = batch_data[batch_meta['token_id']].size(0)
+        self.train_loss.update(loss.item(), batch_size)
+        
+        loss = loss / self.config.get('grad_accumulation_step', 1)
+        loss.backward()
+
+
     def update(self, batch_meta, batch_data):
         self.network.train()
         y = batch_data[batch_meta['label']]

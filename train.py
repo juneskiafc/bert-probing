@@ -25,7 +25,7 @@ from train_utils import (
     print_message,
     save_checkpoint
 )
-
+from gradient_probing import prediction_gradient
 import wandb
 
 def model_config(parser):
@@ -43,6 +43,9 @@ def model_config(parser):
     # model probing
     parser.add_argument('--model_probe', action='store_true')
     parser.add_argument('--model_probe_n_classes', type=int)
+
+    # gradient probing
+    parser.add_argument('--gradient_probe', action='store_true')
     ##############
 
     # DON"T NEED THESE
@@ -455,6 +458,15 @@ def main():
     # dump config
     dump_opt(opt, output_dir)
 
+    if args.gradient_probe:
+        save_path = Path('gradient_probe_outputs').joinpath(exp_name)
+        prediction_gradient(
+            args,
+            model, 
+            multi_task_train_dataloader,
+            save_path
+        )
+    
     if args.wandb:
         wandb.init(project='soroush', name=exp_name)
 
