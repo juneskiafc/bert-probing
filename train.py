@@ -466,6 +466,7 @@ def main():
             multi_task_train_dataloader,
             save_path
         )
+        return
     
     if args.wandb:
         wandb.init(project='soroush', name=exp_name)

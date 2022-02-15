@@ -4,9 +4,7 @@ from typing import List
 import torch
 import tasks
 import logging
-import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import *
 from data_utils.utils import AverageMeter
@@ -15,7 +13,6 @@ from module.bert_optim import Adamax, RAdam
 from mt_dnn.loss import LOSS_REGISTRY
 from mt_dnn.matcher import SANBertNetwork
 from mt_dnn.loss import *
-from data_utils.task_def import TaskType
 from experiments.exp_def import TaskDef
 from data_utils.my_statics import DUMPY_STRING_FOR_EMPTY_ANS
 
@@ -181,7 +178,7 @@ class MTDNNModel(object):
                 weight = batch_data[batch_meta['factor']]
 
         logits, head_probe_logits, model_probe_logits = self.mnetwork(*inputs)
-        
+
         # compute loss
         loss = 0
         loss_criterion = self.task_loss_criterion[task_id]
