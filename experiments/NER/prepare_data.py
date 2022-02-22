@@ -72,7 +72,13 @@ def prepare_per_language_test_data():
         _prepare_data(out_dir, langs_by_split)
 
 if __name__ == '__main__':
-    prepare_per_language_test_data()
+    out_dir = Path(f'experiments/NER/foreign')
+    langs = {'train': ['fr', 'de', 'es'], 'test': ['fr', 'de', 'es']}
+    _prepare_data(out_dir, langs)
+
+    out_dir = Path(f'experiments/NER/en')
+    langs = {'train': ['en'], 'test': ['en']}
+    _prepare_data(out_dir, langs)
 
 
 

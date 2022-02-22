@@ -56,9 +56,9 @@ def prepare_finetune_data():
         _prepare_data(train_langs, test_langs, out_dir)
 
 if __name__ == '__main__':
-    for lang in ['fr']:
-        out_dir = Path(f'experiments/PAWSX/{lang}')
-        _prepare_data([lang], None, out_dir)
+    out_dir = Path(f'experiments/PAWSX/foreign')
+    langs = ['fr', 'de', 'es']
+    _prepare_data(langs, langs, out_dir)
 
 
 

@@ -31,7 +31,7 @@ def combine_datasets(in_files, out_file):
                 for row in reader:
                     writer.writerow(row)
 
-def raw_tsv_to_mtdnn_format(in_files, out_file, language=None, excl_langs=None):
+def raw_tsv_to_mtdnn_format(in_files, out_file, languages=None, excl_langs=None):
     Path(out_file).parent.mkdir(parents=True, exist_ok=True)
 
     with open(out_file, 'w') as fw:
@@ -44,7 +44,7 @@ def raw_tsv_to_mtdnn_format(in_files, out_file, language=None, excl_langs=None):
             with jsonlines.open(in_file) as fr:
                 for row in fr:
                     # check language specific request
-                    c1 = (language is None) or (language is not None and row['language'] == language)
+                    c1 = (languages is None) or (languages is not None and row['language'] in languages)
                     # then check excl_lang request
                     c2 = (excl_langs is None) or (excl_langs is not None and row['language'] not in excl_langs)
                     
@@ -147,5 +147,4 @@ def make_evaluation_data():
     combine_datasets(fourlang_datasets, 'experiments/NLI/4lang_combined/nli_test.tsv')
 
 if __name__ == '__main__':
-    raw_tsv_to_mtdnn_format([XNLI_TEST], MULTI_TEST)
-    # raw_tsv_to_mtdnn_format([XNLI_DEV], Path('experiments/NLI/en/nli_train.tsv'), language='en')
+    raw_tsv_to_mtdnn_format([XNLI_TEST], Path('experiments/NLI/en/nli_test.tsv'), languages=['en'])

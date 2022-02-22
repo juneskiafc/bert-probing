@@ -54,50 +54,56 @@ def plot_heatmap(attention_gradients, output_path):
 
 def compute_correlation():
     root = Path('gradient_probe_outputs')
-    settings = list(LingualSetting)
-    settings.remove(LingualSetting.BASE)
+    # settings = list(LingualSetting)
+    # settings.remove(LingualSetting.BASE)
 
-    all_tasks_settings = list(product(list(Experiment), settings))
-    all_tasks_settings = [f'{n[0].name}_{n[1].name.lower()}' for n in all_tasks_settings]
-    n = len(all_tasks_settings)
+    # all_tasks_settings = list(product(list(Experiment), settings))
+    # all_tasks_settings_a = [f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_en' for n in all_tasks_settings]
+    # all_tasks_settings_a.extend([f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_foreign' for n in all_tasks_settings])
+    # all_tasks_settings_a.extend(['NLI/NLI_multi_foreign3', 'NLI/NLI_cross_foreign3'])
+    # all_tasks_settings = all_tasks_settings_a
+    # n = len(all_tasks_settings)
 
-    pairs = product(all_tasks_settings, all_tasks_settings)
-    rhos = pd.DataFrame(np.zeros((n, n)))
-    ps = pd.DataFrame(-1 * np.ones((n, n)))
+    # pairs = product(all_tasks_settings, all_tasks_settings)
+    # rhos = pd.DataFrame(np.zeros((n, n)))
+    # ps = pd.DataFrame(-1 * np.ones((n, n)))
 
-    rhos.index = all_tasks_settings
-    rhos.columns = all_tasks_settings
-    ps.index = all_tasks_settings
-    ps.columns = all_tasks_settings
+    # rhos.index = all_tasks_settings
+    # rhos.columns = all_tasks_settings
+    # ps.index = all_tasks_settings
+    # ps.columns = all_tasks_settings
 
-    for pair in pairs:
-        print(pair)
-        if pair[0] == pair[1]:
-            rho, p = 1, 0
-        else:
-            if ps.loc[pair[1], pair[0]] != -1:
-                p = ps.loc[pair[1], pair[0]]
-                rho = rhos.loc[pair[1], pair[0]]
-            else:
-                a = root.joinpath(f'{pair[0]}_gp', 'grad.pt')
-                b = root.joinpath(f'{pair[1]}_gp', 'grad.pt')
+    # for pair in pairs:
+    #     print(pair)
+    #     if pair[0] == pair[1]:
+    #         rho, p = 1, 0
+    #     else:
+    #         if ps.loc[pair[1], pair[0]] != -1:
+    #             p = ps.loc[pair[1], pair[0]]
+    #             rho = rhos.loc[pair[1], pair[0]]
+    #         else:
+    #             a = root.joinpath(f'{pair[0]}_gp', 'grad.pt')
+    #             b = root.joinpath(f'{pair[1]}_gp', 'grad.pt')
                 
-                a = raw_to_final_form(torch.load(a)).numpy()
-                b = raw_to_final_form(torch.load(b)).numpy()
+    #             a = raw_to_final_form(torch.load(a)).numpy()
+    #             b = raw_to_final_form(torch.load(b)).numpy()
 
-                a = np.expand_dims(a.flatten(), axis=1)
-                b = np.expand_dims(b.flatten(), axis=1)
+    #             a = np.expand_dims(a.flatten(), axis=1)
+    #             b = np.expand_dims(b.flatten(), axis=1)
 
-                rho, p = spearmanr(a, b)
+    #             rho, p = spearmanr(a, b)
         
-        rhos.loc[pair[0], pair[1]] = rho
-        ps.loc[pair[0], pair[1]] = p
+    #     rhos.loc[pair[0], pair[1]] = rho
+    #     ps.loc[pair[0], pair[1]] = p
     
-    rhos.to_csv(root.joinpath('rhos.csv'))
-    ps.to_csv(root.joinpath('ps.csv'))
+    # rhos.to_csv(root.joinpath('rhos.csv'))
+    # ps.to_csv(root.joinpath('ps.csv'))
+
+    rhos = pd.read_csv(root.joinpath('rhos.csv'), index_col=0)
+    ps = pd.read_csv(root.joinpath('ps.csv'), index_col=0)
 
     for data in [('rhos.pdf', rhos), ('ps.pdf', ps)]:
-        plt.figure(figsize=(14, 14))
+        plt.figure(figsize=(20, 20))
         annot_kws = {'fontsize': 20}
         ax = sns.heatmap(
             data[1],
@@ -106,8 +112,8 @@ def compute_correlation():
             annot_kws=annot_kws,
             fmt=".2f")
 
-        ax.tick_params(axis='x', labelsize=20, labelrotation=45)
-        ax.tick_params(axis='y', labelsize=20, labelrotation=45)
+        ax.tick_params(axis='x', labelsize=20, labelrotation=90)
+        ax.tick_params(axis='y', labelsize=20, labelrotation=0)
 
         fig = ax.get_figure()
         fig.savefig(root.joinpath(data[0]), bbox_inches='tight')

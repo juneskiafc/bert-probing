@@ -1,0 +1,31 @@
+marc:
+  data_format: PremiseOnly
+  enable_san: False
+  labels:
+  - '1'
+  - '2'
+  - '3'
+  - '4'
+  - '5'
+  metric_meta:
+  - ACC
+  n_class: 5
+  loss: CeCriterion
+  split_names:
+  - train
+  task_type: Classification
+
+nli:
+  data_format: PremiseAndOneHypothesis
+  enable_san: false
+  labels:
+  - contradiction
+  - neutral
+  - entailment
+  loss: CeCriterion
+  metric_meta:
+  - F1MAC
+  n_class: 3
+  split_names:
+  - train
+  task_type: Classification

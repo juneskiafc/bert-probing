@@ -50,4 +50,7 @@ def prepare_finetune_data():
         _prepare_data(train_langs, test_langs, out_dir)
 
 if __name__ == '__main__':
-    prepare_finetune_data()
+    for lang in ['es', 'fr', 'de']:
+        out_dir = Path(f'experiments/MARC/{lang}')
+        langs = [lang]
+        _prepare_data(langs, langs, out_dir)
