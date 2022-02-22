@@ -46,6 +46,10 @@ def model_config(parser):
 
     # gradient probing
     parser.add_argument('--gradient_probe', action='store_true')
+
+    # finetuning after joint modeling
+    parser.add_argument('--jm_finetune', action='store_true')
+    parser.add_argument('--jm_task_id', type=int, default=0)
     ##############
 
     # DON"T NEED THESE
@@ -330,6 +334,13 @@ def main():
         assert args.model_ckpt != '' and Path(args.model_ckpt).is_file(), args.model_ckpt
         print_message(logger, f'loading model from {args.model_ckpt}')           
         state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
+
+        if args.jm_finetune:
+            i = 0
+            while f'scoring_list.{i}.weight' in state_dict['state'] and i != args.jm_task_id:
+                del state_dict['state'][f'scoring_list.{i}.weight']
+                del state_dict['state'][f'scoring_list.{i}.bias']
+                i += 1
 
         if not args.huggingface_ckpt:
             split_model_name = args.model_ckpt.split("/")[-1].split("_")
