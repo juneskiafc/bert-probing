@@ -181,7 +181,6 @@ if __name__ == '__main__':
     parser.add_argument('--device_id', type=int, default=0)
     parser.add_argument('--model_ckpt', type=str)
     parser.add_argument('--out_file', type=str, default='')
-    parser.add_argument('--task_def', type=str, default='')
     parser.add_argument('--task', type=str)
     parser.add_argument('--model_type', type=str, default='bert')
     parser.add_argument('--task_id', type=int, default=0)
