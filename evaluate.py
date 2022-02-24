@@ -105,12 +105,12 @@ def construct_model(checkpoint: str, task: Experiment, task_def_path: str, devic
         state_dict['state']['scoring_list.0.weight'] = state_dict['state'][f'scoring_list.{task_id}.weight']
         state_dict['state']['scoring_list.0.bias'] = state_dict['state'][f'scoring_list.{task_id}.bias']
 
-        # remove non pertinent scoring lists.
-        i = task_id
-        while f'scoring_list.{i}.weight' in state_dict['state']:
-            del state_dict['state'][f'scoring_list.{i}.weight']
-            del state_dict['state'][f'scoring_list.{i}.bias']
-            i += 1
+    # remove non pertinent scoring lists.
+    i = 1
+    while f'scoring_list.{i}.weight' in state_dict['state']:
+        del state_dict['state'][f'scoring_list.{i}.weight']
+        del state_dict['state'][f'scoring_list.{i}.bias']
+        i += 1
 
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
@@ -181,7 +181,6 @@ if __name__ == '__main__':
     parser.add_argument('--device_id', type=int, default=0)
     parser.add_argument('--model_ckpt', type=str)
     parser.add_argument('--out_file', type=str, default='')
-    parser.add_argument('--task_def', type=str, default='')
     parser.add_argument('--task', type=str)
     parser.add_argument('--model_type', type=str, default='bert')
     parser.add_argument('--task_id', type=int, default=0)
