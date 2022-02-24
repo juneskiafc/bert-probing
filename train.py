@@ -337,10 +337,13 @@ def main():
 
         if args.jm_finetune:
             i = 0
-            while f'scoring_list.{i}.weight' in state_dict['state'] and i != args.jm_task_id:
-                del state_dict['state'][f'scoring_list.{i}.weight']
-                del state_dict['state'][f'scoring_list.{i}.bias']
+            while f'scoring_list.{i}.weight' in state_dict['state']:
+                if i != args.jm_task_id:
+                    del state_dict['state'][f'scoring_list.{i}.weight']
+                    del state_dict['state'][f'scoring_list.{i}.bias']
                 i += 1
+            state_dict['state']['scoring_list.0.weight'] = state_dict['state'][f'scoring_list.{args.jm_task_id}.weight']
+            state_dict['state']['scoring_list.0.bias'] = state_dict['state'][f'scoring_list.{args.jm_task_id}.bias']
 
         if not args.huggingface_ckpt:
             split_model_name = args.model_ckpt.split("/")[-1].split("_")
