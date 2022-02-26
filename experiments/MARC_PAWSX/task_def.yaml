@@ -1,0 +1,30 @@
+marc:
+  data_format: PremiseOnly
+  enable_san: False
+  labels:
+  - '1'
+  - '2'
+  - '3'
+  - '4'
+  - '5'
+  metric_meta:
+  - F1MAC
+  n_class: 5
+  loss: CeCriterion
+  split_names:
+  - train
+  task_type: Classification
+
+pawsx:
+  data_format: PremiseAndOneHypothesis
+  enable_san: False
+  labels:
+  - '0'
+  - '1'
+  metric_meta:
+  - F1MAC
+  n_class: 2
+  loss: CeCriterion
+  split_names:
+  - train
+  task_type: Classification
