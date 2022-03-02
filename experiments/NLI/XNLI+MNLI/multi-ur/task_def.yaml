@@ -1,14 +1,14 @@
-nli:
+multi-ur:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   split_names:
     - train
-    - test
   labels:
     - contradiction
     - neutral
     - entailment
   metric_meta:
+    - ACC
     - F1
   loss: CeCriterion
   n_class: 3

@@ -18,22 +18,8 @@ CROSS_TEST_TMP = DATA_PATH.joinpath('cross/cross_test_tmp.tsv')
 MULTI_TRAIN = DATA_PATH.joinpath('multi/multi_train.tsv')
 MULTI_TEST = DATA_PATH.joinpath('multi/multi_test.tsv')
 
-def combine_datasets(in_files, out_file):
-    Path(out_file).parent.mkdir(parents=True, exist_ok=True)
-
-    with open(out_file, 'w') as fw:
-        fieldnames = ['id', 'label', 'premise', 'hypothesis']
-        writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
-
-        for in_file in in_files:
-            with open(in_file, 'r') as fr:
-                reader =csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
-                for row in reader:
-                    writer.writerow(row)
-
 def raw_tsv_to_mtdnn_format(in_files, out_file, language=None, excl_langs=None):
-    Path(out_file).parent.mkdir(parents=True, exist_ok=True)
-
+    out_file.parent.mkdir(parents=True, exist_ok=True)
     with open(out_file, 'w') as fw:
         fieldnames = ['id', 'label', 'premise', 'hypothesis']
         writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
@@ -101,6 +87,9 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
             out_file = DATA_PATH.joinpath(f'multi-{language}/multi-{language}_{split}.tsv')
         
         out_file.parent.mkdir(exist_ok=True)
+        # if out_file.is_file():
+        #     print(f'dataset for {language} exists.')
+        #     continue
 
         if split == 'train':
             if not exclude_english:
@@ -115,37 +104,6 @@ def make_per_language_multilingual_data(exclude_english=False, split='train'):
         else:
             raw_tsv_to_mtdnn_format(datasets, out_file, language=language)
 
-def make_evaluation_data():
-    langs = [
-            'ar',
-            'bg',
-            'de',
-            'el',
-            'en',
-            'es',
-            'fr',
-            'hi',
-            'ru',
-            'sw',
-            'th',
-            'tr',
-            'ur',
-            'vi',
-            'zh',
-        ]
-
-    for lang in langs:
-        print(f'making eval data for {lang}.')
-        raw_tsv_to_mtdnn_format([XNLI_TEST], f'experiments/NLI/{lang}/nli_test.tsv', language=lang)
-
-    print('combining 15 langs.')
-    datasets = [f'experiments/NLI/{lang}/nli_test.tsv' for lang in langs]
-    combine_datasets(datasets, 'experiments/NLI/combined/nli_test.tsv')
-
-    print('combining en/es/fr/de.')
-    fourlang_datasets = [f'experiments/NLI/{lang}/nli_test.tsv' for lang in langs if lang in ['en', 'fr', 'de', 'es']]
-    combine_datasets(fourlang_datasets, 'experiments/NLI/4lang_combined/nli_test.tsv')
-
 if __name__ == '__main__':
-    raw_tsv_to_mtdnn_format([XNLI_TEST], MULTI_TEST)
-    # raw_tsv_to_mtdnn_format([XNLI_DEV], Path('experiments/NLI/en/nli_train.tsv'), language='en')
+    raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], MULTI_TRAIN)
+    raw_tsv_to_mtdnn_format([XNLI_TEST], CROSS_TEST)

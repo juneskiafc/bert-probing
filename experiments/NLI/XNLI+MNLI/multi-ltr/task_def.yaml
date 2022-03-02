@@ -1,4 +1,4 @@
-nli:
+multi-ltr:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   split_names:
@@ -9,7 +9,7 @@ nli:
     - neutral
     - entailment
   metric_meta:
-    - F1
+    - ACC
   loss: CeCriterion
   n_class: 3
   task_type: Classification
