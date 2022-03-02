@@ -316,15 +316,13 @@ def distribute_heads_to_gpus(
 
 def evaluate_head_probe_multi_gpu_wrapper(
     finetuned_task: Experiment,
+    downstream_tasks: List,
     root_out_path: Path = Path('head_probe_outputs'),
     devices: List[int] = list(range(torch.cuda.device_count()))):
     
     print('Evaluating the accuracy of each head...')
 
-    for downstream_task in list(Experiment):
-        if downstream_task is Experiment.NLI:
-            continue
-        
+    for downstream_task in downstream_tasks:
         for setting in list(LingualSetting):
             out_results_file = root_out_path.joinpath(
                 finetuned_task.name,
@@ -456,7 +454,8 @@ def get_results_csvs(
     setting: LingualSetting,
     languages: List[str], 
     do_individual=True,
-    do_combined=True):
+    do_combined=True,
+    combined_postfix='combined'):
 
     def _get_acc_for_heads(labels, preds):
         results = np.zeros((12, 12))
@@ -508,10 +507,10 @@ def get_results_csvs(
             finetuned_task.name,
             downstream_task.name,
             setting.name.lower(),
-            f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}-combined.csv')
+            f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}-{combined_postfix}.csv')
 
         if Path(combined_out_file).is_file():
-            print(f'\tDone: {finetuned_task.name}_{setting.name} -> {downstream_task.name} [combined]')
+            print(f'\tDone: {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{combined_postfix}]')
         else:
             combined_labels = raw_results.iloc[:, 1]
             combined_preds = raw_results.iloc[:, 2:]
@@ -525,20 +524,22 @@ def get_final_probing_result(
     downstream_task: Experiment,
     languages: List[str],
     do_individual=True,
-    do_combined=True):
+    do_combined=True,
+    combined_postfix='combined'):
 
     def _get_individual_probing_result(
         finetuned_task: Experiment,
         downstream_task: Experiment,
         setting: LingualSetting,
-        combined=False, lang=None):
+        combined=False,
+        lang=None):
 
         assert combined or (not combined and lang is not None)
 
         if not combined:
             print(f'Getting final pretty results for {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{lang}]...', end='')
         else:
-            print(f'Getting final pretty results for {finetuned_task.name}_{setting.name} -> {downstream_task.name} [combined]...', end='')
+            print(f'Getting final pretty results for {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{combined_postfix}]...', end='')
 
         base_prefix = Path(f'head_probe_outputs/{finetuned_task.name}/{downstream_task.name}/base')
         base_postfix = f'{finetuned_task.name.lower()}_base-{downstream_task.name.lower()}'
@@ -556,9 +557,9 @@ def get_final_probing_result(
             result_csv_path = str(result_csv_path) + f'-{lang}-pure'
             out_file_root = str(out_file_root) + f'-{lang}'
         else:
-            base_csv_path = str(base_csv_path) + '-combined'
-            result_csv_path = str(result_csv_path) + '-combined'
-            out_file_root = str(out_file_root) + '-combined'
+            base_csv_path = str(base_csv_path) + f'-{combined_postfix}'
+            result_csv_path = str(result_csv_path) + f'-{combined_postfix}'
+            out_file_root = str(out_file_root) + f'-{combined_postfix}'
         
         out_file_root = Path(out_file_root)
         base_csv_path = Path(base_csv_path)
@@ -605,6 +606,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--devices', nargs='+', default='')
     parser.add_argument('--finetuned_task', type=str)
+    parser.add_argument('--downstream_task', type=str, default='')
+    parser.add_argument("--combined_postfix", type=str, default='combined')
+    parser.add_argument('--do_individual', action='store_true')
+    parser.add_argument('--do_combined', action='store_true')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--max_seq_len', type=int, default=512)
 
@@ -613,24 +618,31 @@ if __name__ == '__main__':
     if args.devices == '':
         args.devices = list(range(torch.cuda.device_count()))
     
+    if args.downstream_task == '':
+        downstream_tasks = list(Experiment)
+    else:
+        downstream_tasks = [Experiment[args.downstream_task.upper()]]
+    
     finetuned_task = Experiment[args.finetuned_task.upper()]
-    evaluate_head_probe_multi_gpu_wrapper(finetuned_task, devices=args.devices)
+    evaluate_head_probe_multi_gpu_wrapper(finetuned_task, downstream_tasks, devices=args.devices)
 
     languages = ['en', 'fr', 'es', 'de']
-
-    for downstream_task in list(Experiment):
-        if downstream_task is Experiment.NLI:
-            continue
-
+    for downstream_task in downstream_tasks:
         for setting in list(LingualSetting):
             get_results_csvs(
                 finetuned_task,
                 downstream_task,
                 setting,
-                languages
+                languages,
+                do_individual=args.do_individual,
+                do_combined=args.do_combined,
+                combined_postfix=args.combined_postfix
             )
 
         get_final_probing_result(
             finetuned_task,
             downstream_task,
-            languages)
+            languages,
+            do_individual=args.do_individual,
+            do_combined=args.do_combined,
+            combined_postfix=args.combined_postfix)

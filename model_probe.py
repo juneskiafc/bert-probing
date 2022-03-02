@@ -7,6 +7,7 @@ from experiments.exp_def import (
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_ckpt', type=str, default='')
+parser.add_argument('--task', type=str, default='')
 args = parser.parse_args()
 
 model_ckpt = Path(args.model_ckpt)
@@ -18,7 +19,12 @@ task_to_n_classes = {
     'NER': 7
 }
 processes = []
-for downstream_task in list(Experiment):
+if args.task == '':
+    tasks = list(Experiment)
+else:
+    tasks = [Experiment[args.task.upper()]]
+
+for downstream_task in tasks:
     exp_name = f'{model_ckpt.parent.name}:{downstream_task.name}'
     dataset = f'{downstream_task.name}/cross'
     cmd = 'python train.py'
