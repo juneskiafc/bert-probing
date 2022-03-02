@@ -25,7 +25,7 @@ from train_utils import (
     print_message,
     save_checkpoint
 )
-
+from gradient_probing import prediction_gradient
 import wandb
 
 def model_config(parser):
@@ -43,6 +43,14 @@ def model_config(parser):
     # model probing
     parser.add_argument('--model_probe', action='store_true')
     parser.add_argument('--model_probe_n_classes', type=int)
+
+    # gradient probing
+    parser.add_argument('--gradient_probe', action='store_true')
+
+    # finetuning after joint modeling
+    parser.add_argument('--jm_finetune', action='store_true')
+    parser.add_argument('--jm_finetune_new', action='store_true') # if task does not exist in 1st stage finetuning
+    parser.add_argument('--jm_task_id', type=int, default=0) # if task exists from 1st stage finetuning
     ##############
 
     # DON"T NEED THESE
@@ -328,6 +336,26 @@ def main():
         print_message(logger, f'loading model from {args.model_ckpt}')           
         state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
 
+        if args.jm_finetune:
+            if args.jm_finetune_new:
+                i = 0
+                while f'scoring_list.{i}.weight' in state_dict['state']:
+                    del state_dict['state'][f'scoring_list.{i}.weight']
+                    del state_dict['state'][f'scoring_list.{i}.bias']
+                    i += 1
+            else:
+                i = 0
+                while f'scoring_list.{i}.weight' in state_dict['state']:
+                    if i != args.jm_task_id:
+                        del state_dict['state'][f'scoring_list.{i}.weight']
+                        del state_dict['state'][f'scoring_list.{i}.bias']
+                    i += 1
+                
+                if args.jm_task_id != 0:
+                    for param in ['weight', 'bias']:
+                        state_dict['state'][f'scoring_list.0.{param}'] = state_dict['state'][f'scoring_list.{args.jm_task_id}.{param}']
+                        del state_dict['state'][f'scoring_list.{args.jm_task_id}.{param}']
+
         if not args.huggingface_ckpt:
             split_model_name = args.model_ckpt.split("/")[-1].split("_")
             if len(split_model_name) > 2:
@@ -399,7 +427,11 @@ def main():
                     state_dict[param_name] = _init_state_dict[param_name]
                 
                 state_dict = {'state': state_dict}
-
+            
+            if args.jm_finetune and args.jm_finetune_new:
+                for param in ['weight', 'bias']:
+                    state_dict['state'][f'scoring_list.0.{param}'] = model.network.state_dict()[f'scoring_list.0.{param}']
+            
             model.load_state_dict(state_dict)
 
     if args.head_probe:
@@ -455,6 +487,16 @@ def main():
     # dump config
     dump_opt(opt, output_dir)
 
+    if args.gradient_probe:
+        save_path = Path('gradient_probe_outputs').joinpath(exp_name)
+        prediction_gradient(
+            args,
+            model, 
+            multi_task_train_dataloader,
+            save_path
+        )
+        return
+    
     if args.wandb:
         wandb.init(project='soroush', name=exp_name)
 

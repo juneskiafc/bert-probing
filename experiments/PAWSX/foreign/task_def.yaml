@@ -1,16 +1,14 @@
-marc:
-  data_format: PremiseOnly
+pawsx:
+  data_format: PremiseAndOneHypothesis
   enable_san: False
   labels:
+  - '0'
   - '1'
-  - '2'
-  - '3'
-  - '4'
-  - '5'
   metric_meta:
-  - ACC
-  n_class: 5
+  - F1MAC
+  n_class: 2
   loss: CeCriterion
   split_names:
+  - train
   - test
   task_type: Classification

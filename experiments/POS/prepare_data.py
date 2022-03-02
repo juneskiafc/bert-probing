@@ -89,5 +89,20 @@ def prepare_per_language_test_data():
         _prepare_data(dataset_dirs, out_dir)
 
 if __name__ == '__main__':
-    prepare_data_finetune(LingualSetting.MULTI)
+    out_dir = Path('experiments/POS/foreign')
+    out_dir.mkdir(parents=True)
+    dataset_dirs = {
+        'train': [
+            DATA_ROOT.joinpath('fr/UD_French-GSD'),
+            DATA_ROOT.joinpath('de/UD_German-GSD'),
+            DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+        ],
+        'test': [
+            # DATA_ROOT.joinpath('en/UD_English-EWT'),
+            DATA_ROOT.joinpath('fr/UD_French-GSD'),
+            DATA_ROOT.joinpath('de/UD_German-GSD'),
+            DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+        ]
+    }
+    _prepare_data(dataset_dirs, out_dir)
             

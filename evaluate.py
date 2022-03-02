@@ -83,7 +83,7 @@ def build_dataset(data_path, batch_size, max_seq_len, task_def, device_id):
 
     return test_data
 
-def construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int):
+def construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int, task_id: int = 0):
     task_defs = TaskDefs(task_def_path)
     task_name = task.name.lower()
     metric_meta = task_defs._metric_meta_map[task_name]
@@ -101,12 +101,16 @@ def construct_model(checkpoint: str, task: Experiment, task_def_path: str, devic
     config['device'] = device_id
     del state_dict['optimizer']
 
-    # state_dict['state']['scoring_list.0.weight'] = state_dict['state']['scoring_list.1.weight']
-    # state_dict['state']['scoring_list.0.bias'] = state_dict['state']['scoring_list.1.bias']
+    if task_id != 0:
+        state_dict['state']['scoring_list.0.weight'] = state_dict['state'][f'scoring_list.{task_id}.weight']
+        state_dict['state']['scoring_list.0.bias'] = state_dict['state'][f'scoring_list.{task_id}.bias']
 
-    # # remove non pertinent scoring lists.
-    # for param in ['scoring_list.1.weight', 'scoring_list.1.bias', 'scoring_list.2.weight', 'scoring_list.2.bias']:
-    #     del state_dict['state'][param]
+    # remove non pertinent scoring lists.
+    i = 1
+    while f'scoring_list.{i}.weight' in state_dict['state']:
+        del state_dict['state'][f'scoring_list.{i}.weight']
+        del state_dict['state'][f'scoring_list.{i}.bias']
+        i += 1
 
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
@@ -177,9 +181,9 @@ if __name__ == '__main__':
     parser.add_argument('--device_id', type=int, default=0)
     parser.add_argument('--model_ckpt', type=str)
     parser.add_argument('--out_file', type=str, default='')
-    parser.add_argument('--task_def', type=str, default='')
     parser.add_argument('--task', type=str)
     parser.add_argument('--model_type', type=str, default='bert')
+    parser.add_argument('--task_id', type=int, default=0)
     args = parser.parse_args()
 
     task = Experiment[args.task.upper()]
@@ -191,13 +195,6 @@ if __name__ == '__main__':
     results_out_file.parent.mkdir(parents=True, exist_ok=True)
 
     if task is Experiment.NLI:
-        # datasets = [
-        #     'en',
-        #     'es',
-        #     'de',
-        #     'fr',
-        #     '4lang_combined'
-        # ]
         datasets = [
             'ar',
             'bg',
@@ -229,7 +226,8 @@ if __name__ == '__main__':
             args.model_ckpt,
             task,
             task_def_path,
-            args.device_id)
+            args.device_id,
+            args.task_id)
         
         accs = evaluate_model_against_multiple_datasets(
             model,

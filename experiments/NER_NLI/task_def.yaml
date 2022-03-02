@@ -15,5 +15,19 @@ ner:
   loss: CeCriterion
   split_names:
   - train
-  - test
+  task_type: Classification
+  
+nli:
+  data_format: PremiseAndOneHypothesis
+  enable_san: false
+  labels:
+  - contradiction
+  - neutral
+  - entailment
+  loss: CeCriterion
+  metric_meta:
+  - F1MAC
+  n_class: 3
+  split_names:
+  - train
   task_type: Classification
