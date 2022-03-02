@@ -213,7 +213,6 @@ if __name__ == '__main__':
             'en',
             'combined'
         ]
-        R
     else:
         datasets = ['en', 'fr', 'de', 'es', 'multi']
         

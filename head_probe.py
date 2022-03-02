@@ -146,7 +146,7 @@ def probe_model(finetuned_setting: LingualSetting,
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--parse_mode', type=str, default='model')
+    parser.add_argument('--parse_mode', type=str, default='heads')
     parser.add_argument('--downstream_task', type=str, default='')
     parser.add_argument('--downstream_setting', type=str, default='multi')
     parser.add_argument('--finetuned_task', type=str, default='NLI')

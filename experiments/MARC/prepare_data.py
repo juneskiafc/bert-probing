@@ -21,6 +21,9 @@ def _prepare_data(train_langs, test_langs, out_dir):
                 else:
                     langs = test_langs
                 
+                if langs is None:
+                    continue
+                    
                 for lang in langs:
                     dataset = load_dataset('amazon_reviews_multi', lang, split=split)
                     datasets.append(dataset)
@@ -50,7 +53,6 @@ def prepare_finetune_data():
         _prepare_data(train_langs, test_langs, out_dir)
 
 if __name__ == '__main__':
-    for lang in ['es', 'fr', 'de']:
-        out_dir = Path(f'experiments/MARC/{lang}')
-        langs = [lang]
-        _prepare_data(langs, langs, out_dir)
+    langs = ['es', 'fr', 'de']
+    out_dir = Path(f'experiments/MARC/foreign')
+    _prepare_data(None, langs, out_dir)
