@@ -35,7 +35,7 @@ def rank_heads():
 def preprocess_ranked_heads(setting):
     dataframes = []
 
-    for task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
+    for task in ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']:
         for ls in ['cross', 'multi']:
             data_for_model = []
 
@@ -90,7 +90,7 @@ def get_colors_as_hex():
 
 def plot_altair(dfs):
     columns = []
-    for pair in itertools.product(['SA', 'POS', 'NER', 'XNLI', 'PI'], ['cross-ling', 'multi-ling']):
+    for pair in itertools.product(['POS', 'NER', 'PI', 'SA', 'XNLI'], ['cross-ling', 'multi-ling']):
         columns.append(f'{pair[0]}-{pair[1]}')
     
     def prep_df(df, layer_idx):
@@ -105,7 +105,7 @@ def plot_altair(dfs):
         for df in dfs:
             d.append(df.iloc[:, layer])
         d = pd.concat(d, axis=1)
-        d.index = list(range(24, 144, 24))
+        d.index = [f'k={k}' for k in list(range(24, 144, 24))]
         d.columns = columns
         layer_dfs.append(d)
     
@@ -119,7 +119,7 @@ def plot_altair(dfs):
     
     chart = alt.Chart(df).mark_bar().encode(
         # tell Altair which field to group columns on
-        x=alt.X('model:N'),
+        x=alt.X('model:N', title='', axis=alt.Axis(labelAngle=-45), sort=columns),
 
         # tell Altair which field to use as Y values and how to calculate
         y=alt.Y(
@@ -128,7 +128,8 @@ def plot_altair(dfs):
             scale=alt.Scale(domain=(0, 1))),
 
         # tell Altair which field to use to use as the set of columns to be  represented in each group
-        column=alt.Column('k:O', title='k'),
+        # hack: title is model so we can move it to the bottom later
+        column=alt.Column('k:O', title='model', sort=[f'k={k}' for k in list(range(24, 144, 24))]),
 
         # tell Altair which field to use for color segmentation 
         color=alt.Color('Layer:N', scale=alt.Scale(range=colors), sort=list(range(1, 13))[::-1]),
@@ -136,6 +137,8 @@ def plot_altair(dfs):
         order=alt.Order('Layer', sort='ascending')
     ).configure_view(
         strokeOpacity=0
+    ).configure_header(
+        titleOrient='bottom'
     )
 
     return chart
@@ -143,7 +146,8 @@ def plot_altair(dfs):
 if __name__ == '__main__':
     # rank_heads()
     for setting in ['en', 'foreign', 'combined']:
-        save_path = f'head_probe_ranking/plots/plot_topk/{setting}_ranks.svg'
+        save_path = Path(f'head_probe_ranking/plots/plot_topk/{setting}_ranks.svg')
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         dataframes = preprocess_ranked_heads(setting)
         ax = plot_altair(dataframes)
-        altair_saver.save(ax, save_path)
+        altair_saver.save(ax, str(save_path))
