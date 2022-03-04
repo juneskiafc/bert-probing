@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, pearsonr
 from itertools import product
 from experiments.exp_def import LingualSetting, Experiment
 
@@ -52,52 +52,54 @@ def plot_heatmap(attention_gradients, output_path):
     fig = ax.get_figure()
     fig.savefig(output_path, bbox_inches='tight')
 
-def compute_correlation():
+def compute_correlation(method='pearson'):
     root = Path('gradient_probe_outputs')
-    # settings = list(LingualSetting)
-    # settings.remove(LingualSetting.BASE)
+    settings = list(LingualSetting)
+    settings.remove(LingualSetting.BASE)
 
-    # all_tasks_settings = list(product(list(Experiment), settings))
-    # all_tasks_settings_a = [f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_en' for n in all_tasks_settings]
-    # all_tasks_settings_a.extend([f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_foreign' for n in all_tasks_settings])
-    # all_tasks_settings_a.extend(['NLI/NLI_multi_foreign3', 'NLI/NLI_cross_foreign3'])
-    # all_tasks_settings = all_tasks_settings_a
-    # n = len(all_tasks_settings)
+    all_tasks_settings = list(product(list(Experiment), settings))
+    all_tasks_settings_a = [f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_en' for n in all_tasks_settings]
+    all_tasks_settings_a.extend([f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_foreign' for n in all_tasks_settings])
+    all_tasks_settings_a.extend(['NLI/NLI_multi_foreign3', 'NLI/NLI_cross_foreign3'])
+    all_tasks_settings = all_tasks_settings_a
+    n = len(all_tasks_settings)
 
-    # pairs = product(all_tasks_settings, all_tasks_settings)
-    # rhos = pd.DataFrame(np.zeros((n, n)))
-    # ps = pd.DataFrame(-1 * np.ones((n, n)))
+    pairs = product(all_tasks_settings, all_tasks_settings)
+    rhos = pd.DataFrame(np.zeros((n, n)))
+    ps = pd.DataFrame(-1 * np.ones((n, n)))
 
-    # rhos.index = all_tasks_settings
-    # rhos.columns = all_tasks_settings
-    # ps.index = all_tasks_settings
-    # ps.columns = all_tasks_settings
+    rhos.index = all_tasks_settings
+    rhos.columns = all_tasks_settings
+    ps.index = all_tasks_settings
+    ps.columns = all_tasks_settings
 
-    # for pair in pairs:
-    #     print(pair)
-    #     if pair[0] == pair[1]:
-    #         rho, p = 1, 0
-    #     else:
-    #         if ps.loc[pair[1], pair[0]] != -1:
-    #             p = ps.loc[pair[1], pair[0]]
-    #             rho = rhos.loc[pair[1], pair[0]]
-    #         else:
-    #             a = root.joinpath(f'{pair[0]}_gp', 'grad.pt')
-    #             b = root.joinpath(f'{pair[1]}_gp', 'grad.pt')
+    for pair in pairs:
+        print(pair)
+        if pair[0] == pair[1]:
+            rho, p = 1, 0
+        else:
+            if ps.loc[pair[1], pair[0]] != -1:
+                p = ps.loc[pair[1], pair[0]]
+                rho = rhos.loc[pair[1], pair[0]]
+            else:
+                a = root.joinpath(f'{pair[0]}_gp', 'grad.pt')
+                b = root.joinpath(f'{pair[1]}_gp', 'grad.pt')
                 
-    #             a = raw_to_final_form(torch.load(a)).numpy()
-    #             b = raw_to_final_form(torch.load(b)).numpy()
+                a = raw_to_final_form(torch.load(a)).numpy().flatten()
+                b = raw_to_final_form(torch.load(b)).numpy().flatten()
 
-    #             a = np.expand_dims(a.flatten(), axis=1)
-    #             b = np.expand_dims(b.flatten(), axis=1)
-
-    #             rho, p = spearmanr(a, b)
+                if method == 'spearman':
+                    a = np.expand_dims(a, axis=1)
+                    b = np.expand_dims(b, axis=1)
+                    rho, p = spearmanr(a, b)
+                elif method == 'pearson':
+                    rho, p = pearsonr(a, b)
         
-    #     rhos.loc[pair[0], pair[1]] = rho
-    #     ps.loc[pair[0], pair[1]] = p
+        rhos.loc[pair[0], pair[1]] = rho
+        ps.loc[pair[0], pair[1]] = p
     
-    # rhos.to_csv(root.joinpath('rhos.csv'))
-    # ps.to_csv(root.joinpath('ps.csv'))
+    rhos.to_csv(root.joinpath('rhos.csv'))
+    ps.to_csv(root.joinpath('ps.csv'))
 
     rhos = pd.read_csv(root.joinpath('rhos.csv'), index_col=0)
     ps = pd.read_csv(root.joinpath('ps.csv'), index_col=0)

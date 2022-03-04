@@ -28,6 +28,9 @@ for lang_setting in ['combined', 'en', 'foreign']:
         i = 0
         for subtask in ['MARC', 'NER', 'POS', "NLI", 'PAWSX']:
             for setting in ['cross', 'multi']:
+                if f'{subtask}_{setting}' == f'{task}_multi':
+                    continue
+            
                 sub_head_indices_sorted = get_sorted_head_idxs(subtask, task, setting, lang_setting)
                 data = [0 for _ in range(144)]
                 for k in range(1, 145):
