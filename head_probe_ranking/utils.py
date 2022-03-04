@@ -105,7 +105,7 @@ def plot_altair(dfs):
         for df in dfs:
             d.append(df.iloc[:, layer])
         d = pd.concat(d, axis=1)
-        d.index = list(range(24, 144, 24))
+        d.index = [f'k={k}' for k in list(range(24, 144, 24))]
         d.columns = columns
         layer_dfs.append(d)
     
@@ -119,7 +119,7 @@ def plot_altair(dfs):
     
     chart = alt.Chart(df).mark_bar().encode(
         # tell Altair which field to group columns on
-        x=alt.X('model:N'),
+        x=alt.X('model:N', title=''),
 
         # tell Altair which field to use as Y values and how to calculate
         y=alt.Y(
@@ -128,7 +128,8 @@ def plot_altair(dfs):
             scale=alt.Scale(domain=(0, 1))),
 
         # tell Altair which field to use to use as the set of columns to be  represented in each group
-        column=alt.Column('k:O', title='k'),
+        # hack: title is model so we can move it to the bottom later
+        column=alt.Column('k:O', title='model', sort=[f'k={k}' for k in list(range(24, 144, 24))]),
 
         # tell Altair which field to use for color segmentation 
         color=alt.Color('Layer:N', scale=alt.Scale(range=colors), sort=list(range(1, 13))[::-1]),
@@ -136,6 +137,8 @@ def plot_altair(dfs):
         order=alt.Order('Layer', sort='ascending')
     ).configure_view(
         strokeOpacity=0
+    ).configure_header(
+        titleOrient='bottom'
     )
 
     return chart
