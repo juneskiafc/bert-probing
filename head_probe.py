@@ -146,7 +146,6 @@ def probe_model(finetuned_setting: LingualSetting,
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--parse_mode', type=str, default='heads')
     parser.add_argument('--downstream_task', type=str, default='')
     parser.add_argument('--downstream_setting', type=str, default='multi')
     parser.add_argument('--finetuned_task', type=str, default='NLI')
@@ -173,19 +172,10 @@ if __name__ == '__main__':
     
     for downstream_task in downstream_tasks:
         for setting in finetuned_settings:            
-            if args.parse_mode == 'heads':
-                probe_heads(
-                    setting=setting,            
-                    finetuned_task=Experiment[args.finetuned_task.upper()],
-                    task=downstream_task,
-                    devices=devices,
-                    models_per_gpu=args.models_per_gpu
-                )
-            elif args.parse_mode == 'model':
-                probe_model(
-                    finetuned_setting=setting,
-                    finetuned_task=Experiment[args.finetuned_task.upper()], # {finetuned_task}_{setting}
-                    downstream_setting=LingualSetting[args.downstream_setting.upper()], # trained on downstream task's downstream_task_setting dataset
-                    downstream_task=downstream_task,
-                    devices=devices
-                )
+            probe_heads(
+                setting=setting,            
+                finetuned_task=Experiment[args.finetuned_task.upper()],
+                task=downstream_task,
+                devices=devices,
+                models_per_gpu=args.models_per_gpu
+            )
