@@ -1,11 +1,9 @@
 from pathlib import Path
 import shutil
-import seaborn as sns
 import altair as alt
 import pandas as pd
 import itertools
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import altair_saver
 
@@ -19,6 +17,22 @@ def move_files():
                 dst = dst_root.joinpath(setting, task, src.name)
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(src, dst)
+
+def cross_probing_move_files():
+    root = Path('head_probe_outputs')
+    dst_root = Path('head_probe_ranking')
+    for upstream_task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
+        for downstream_task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
+            for lingual_setting in ['cross', 'multi']:
+                for setting in ['en', 'foreign', 'combined']:
+                    src = root.joinpath(
+                        upstream_task,
+                        downstream_task,
+                        'results',
+                        f'{upstream_task.lower()}_{lingual_setting}-{downstream_task.lower()}-{setting}.csv')
+                    dst = dst_root.joinpath(setting, downstream_task, upstream_task, lingual_setting, src.name)
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(src, dst)
 
 def rank_heads():
     for setting in ['en', 'foreign', 'combined']:
@@ -39,7 +53,7 @@ def preprocess_ranked_heads(setting):
         for ls in ['cross', 'multi']:
             data_for_model = []
 
-            for i, k in enumerate(range(24, 144, 24)):
+            for k in range(24, 144, 24):
                 path_to_data = Path(f'head_probe_ranking/{setting}/{task}/{task}_{ls}-{task}-{setting}_layer_ranks.np')
                 accumulated = [0 for _ in range(12)]
                 data = pd.read_csv(path_to_data, index_col=0)[:k]
@@ -48,7 +62,6 @@ def preprocess_ranked_heads(setting):
                 for _, d in data.iterrows():
                     accumulated[int(d)] += 1
                 accumulated = [a / sum(accumulated) for a in accumulated]
-                # accumulated = np.cumsum(accumulated)
                 data_for_model.append(accumulated)
 
             df_for_model = pd.DataFrame(data_for_model)
