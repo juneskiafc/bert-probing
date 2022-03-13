@@ -159,7 +159,10 @@ def prepare_data(args):
 
     mt_dnn_root = root.joinpath(args.model)
     mt_dnn_root.mkdir(parents=True, exist_ok=True)
-    task_defs = TaskDefs(root.joinpath('task_def.yaml'))
+    if args.task_def == '':
+        task_defs = TaskDefs(root.joinpath('task_def.yaml'))
+    else:
+        task_defs = TaskDefs(args.task_def)
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
 
@@ -189,6 +192,29 @@ if __name__ == '__main__':
     parser.add_argument('--do_lower_case', action='store_true')
     parser.add_argument('--do_padding', action='store_true')
     parser.add_argument('--dataset', type=str)
+    parser.add_argument('--task_def', type=str, default='')
 
     args = parser.parse_args()
     prepare_data(args)
+    # langs = [
+    #         'ar',
+    #         'bg',
+    #         'de',
+    #         'el',
+    #         'es',
+    #         'fr',
+    #         'hi',
+    #         'ru',
+    #         'sw',
+    #         'th',
+    #         'tr',
+    #         'ur',
+    #         'vi',
+    #         'zh',
+    #     ]
+    # datasets = [f'NLI/foreign_{p}' for p in [0.2, 0.4, 0.6, 0.8]]
+    # # datasets = [f'NLI/{lang}' for lang in langs]
+    # for dataset in datasets:
+    #     args.dataset = dataset
+    #     print(args.dataset)
+    #     prepare_data(args)

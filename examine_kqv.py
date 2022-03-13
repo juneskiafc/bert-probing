@@ -87,9 +87,7 @@ def compare_kqv(model_name, output_dir):
     
     create_ranked_heads_heatmap(output_diffs_file, output_dir, model_name)
 
-def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, diffs=None):
-    heatmap_out_file = output_dir.joinpath(f'results/{task}_ranked_heads_by_absdiff.pdf')
-    
+def create_ranked_heads_heatmap(diffs_file, out_file, normalize=True, diffs=None):    
     if diffs is None:
         heatmap = np.load(diffs_file)
     else:
@@ -99,23 +97,26 @@ def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, di
         max_ = np.amax(heatmap)
         heatmap /= max_
     
-    plt.figure(figsize=(14, 14))
-    annot_kws = {'fontsize': 20}
+    font_size = 45
+    plt.figure(figsize=(20, 16))
+    annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         heatmap,
         cbar=False,
-        annot=True,
+        annot=False,
         annot_kws=annot_kws,
         fmt=".2f")
 
     ax.invert_yaxis()
-    ax.set_xlabel('heads', fontsize=20)
-    ax.set_ylabel('layers', fontsize=20)
-    ax.tick_params(axis='x', labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.set_xticklabels(list(range(1, 13)))
+    ax.set_yticklabels(list(range(1, 13)))
+    ax.set_xlabel('heads', fontsize=font_size)
+    ax.set_ylabel('layers', fontsize=font_size)
+    ax.tick_params(axis='x', labelsize=font_size)
+    ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
-    fig.savefig(heatmap_out_file, bbox_inches='tight')
+    fig.savefig(out_file, bbox_inches='tight')
 
 def compare_kqv_across_multiple(task_name_a, task_name_b):
     cross_diffs = np.load(f'kqv_outputs/results/{task_name_a}_diffs.npy')
@@ -124,25 +125,28 @@ def compare_kqv_across_multiple(task_name_a, task_name_b):
     heatmap = cross_diffs - multi_diffs
     heatmap = (2 * ((heatmap - np.amin(heatmap)) / (np.amax(heatmap) - np.amin(heatmap)))) - 1
 
-    plt.figure(figsize=(14, 14))
-    annot_kws = {'fontsize': 20}
+    font_size = 45
+    plt.figure(figsize=(20, 16))
+    annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         heatmap,
         center=0, 
         cmap='bwr',
         cbar=False,
-        annot=True,
+        annot=False,
         annot_kws=annot_kws,
         fmt=".2f")
     
     ax.invert_yaxis()
-    ax.set_xlabel('heads', fontsize=20)
-    ax.set_ylabel('layers', fontsize=20)
-    ax.tick_params(axis='x', labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.set_xticklabels(list(range(1, 13)))
+    ax.set_yticklabels(list(range(1, 13)))
+    ax.set_xlabel('heads', fontsize=font_size)
+    ax.set_ylabel('layers', fontsize=font_size)
+    ax.tick_params(axis='x', labelsize=font_size)
+    ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
-    fig.savefig(f'kqv_outputs/diff_results/{task_name_a}-{task_name_b}_comp_ranked_heads_by_absdiff.pdf', bbox_inches='tight')
+    fig.savefig(f'kqv_outputs/{task_name_a}-{task_name_b}_comp_ranked_heads_by_absdiff.pdf', bbox_inches='tight')
 
 def get_spearmans_rho(task):
     # cross_diffs = get_mean_across_seeds(task, 'cross', True)
@@ -243,34 +247,7 @@ def get_mean_across_seeds(task, setting, return_df_only=True):
     fig = ax.get_figure()
     fig.savefig(heatmap_out_file, bbox_inches='tight')
 
-
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument('--model_ckpt', type=str, default='')
-    parser.add_argument('--output_dir', type=str, default='kqv_outputs')
-    parser.add_argument('--model_name', type=str, default='')
-    args = parser.parse_args()
-
-    # for task in ['NLI']:
-    #     for setting in ['cross', 'multi']:
-    #         # for seed in ['1', '2']:
-    #         args.model_ckpt = list(Path(f'checkpoint/{task}_{setting}').rglob("*.pt"))[0]
-    #         save_all_kqv(args.model_ckpt, args.output_dir)
-
-    # for task in ['NLI']:
-    #     for setting in ['cross', 'multi']:
-    #         for seed in range(3):
-    #             model_name = f'{task}_{setting}'
-    #             # if seed > 0:
-    #             #     model_name += f'_seed{seed}'
-    #             compare_kqv(model_name, args.output_dir)
-
-        # compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
-
-    # for task in ['NLI', 'MARC', 'PAWSX', 'POS', 'NER']:
-    #     for setting in ['cross', 'multi']:
-    #         get_mean_across_seeds(task, setting)
-    
+def all_seeds_rho_p(args):
     crosses_data = []
     multis_data = []
     crosses_p = []
@@ -320,4 +297,19 @@ if __name__ == "__main__":
         fig = ax.get_figure()
         fig.savefig(f'kqv_outputs/{setting}_3seeds_separate_rho.pdf', bbox_inches='tight')
 
-    # plot_spearmans_rho(languages)
+def create_final_ranked_heads_figure(args):
+    for task in ['MARC', 'NER', 'NLI', 'PAWSX', 'POS']:
+        for setting in ['cross', 'multi']:
+            diffs_file = f'kqv_outputs/results/{task}_{setting}_diffs.npy'
+            output_file = Path(args.output_dir).joinpath(f'{task}_{setting}.pdf')
+            create_ranked_heads_heatmap(diffs_file, output_file, task)
+    
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument('--model_ckpt', type=str, default='')
+    parser.add_argument('--output_dir', type=str, default='kqv_outputs')
+    parser.add_argument('--model_name', type=str, default='')
+    args = parser.parse_args()
+    
+    for task in ['MARC', 'NER', 'NLI', 'PAWSX', 'POS']:
+        compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')

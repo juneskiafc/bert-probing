@@ -33,21 +33,24 @@ def raw_to_final_form(raw_attention_gradients):
 
     return attention_gradients
 
-def plot_heatmap(attention_gradients, output_path):    
-    plt.figure(figsize=(14, 14))
-    annot_kws = {'fontsize': 20}
+def plot_heatmap(attention_gradients, output_path):  
+    font_size = 45
+    plt.figure(figsize=(20, 16))  
+    annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         attention_gradients,
         cbar=False,
-        annot=True,
+        annot=False,
         annot_kws=annot_kws,
         fmt=".2f")
 
     ax.invert_yaxis()
-    ax.set_xlabel('heads', fontsize=20)
-    ax.set_ylabel('layers', fontsize=20)
-    ax.tick_params(axis='x', labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.set_xticklabels(list(range(1, 13)))
+    ax.set_yticklabels(list(range(1, 13)))
+    ax.set_xlabel('heads', fontsize=font_size)
+    ax.set_ylabel('layers', fontsize=font_size)
+    ax.tick_params(axis='x', labelsize=font_size)
+    ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
     fig.savefig(output_path, bbox_inches='tight')
@@ -154,7 +157,7 @@ def prediction_gradient(args, model, dataloader, save_path):
         attention_gradients = torch.load(save_path.joinpath('grad.pt'))
 
     attention_gradients = raw_to_final_form(attention_gradients)
-    plot_heatmap(attention_gradients, save_path.joinpath('grad.pdf'))
+    plot_heatmap(attention_gradients, save_path.joinpath(f'{save_path.name}.pdf'))
 
 if __name__ == '__main__':
-    compute_correlation()
+    prediction_gradient()
