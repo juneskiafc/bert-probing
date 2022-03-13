@@ -626,7 +626,12 @@ if __name__ == '__main__':
     finetuned_task = Experiment[args.finetuned_task.upper()]
     evaluate_head_probe_multi_gpu_wrapper(finetuned_task, downstream_tasks, devices=args.devices)
 
-    languages = ['en', 'fr', 'es', 'de']
+    languages = [
+        # 'en',
+        'fr',
+        'es',
+        'de'
+    ]
     for downstream_task in downstream_tasks:
         for setting in list(LingualSetting):
             get_results_csvs(
