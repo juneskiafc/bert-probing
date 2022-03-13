@@ -1,8 +1,13 @@
 from pathlib import Path
 import shutil
+import seaborn as sns
+import altair as alt
 import pandas as pd
+import itertools
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import altair_saver
 
 def move_files():
     root = Path('head_probe_outputs')
@@ -27,78 +32,122 @@ def rank_heads():
                 sorted_layer_indices = pd.Series(layer_indices[sorted_data_indices])
                 sorted_layer_indices.to_csv(f'head_probe_ranking/{setting}/{task}/{task}_{ls}-{task}-{setting}_layer_ranks.np')
 
-def plot_ranked_heads_1():
-    colors = [f'tab:{c}' for c in ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']]
-    for setting in ['en', 'foreign', 'combined']:
-        plt.figure(figsize=(144, 50))
-        i = 0
-        for task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
-            for ls in ['cross', 'multi']:
+def preprocess_ranked_heads(setting):
+    dataframes = []
+
+    for task in ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']:
+        for ls in ['cross', 'multi']:
+            data_for_model = []
+
+            for i, k in enumerate(range(24, 144, 24)):
                 path_to_data = Path(f'head_probe_ranking/{setting}/{task}/{task}_{ls}-{task}-{setting}_layer_ranks.np')
-                data = pd.read_csv(path_to_data, index_col=0)
-                data += 1
-                plt.plot(list(range(144)), data, color=colors[i], label=f'{task}_{ls}')
-                i += 1
-        
-        plt.legend(loc='upper right')
-        plt.savefig(f'head_probe_ranking/{setting}/ranks.pdf', bbox_inches='tight')
-
-def plot_ranked_heads_2():
-    colors = [f'tab:{c}' for c in ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']]
-    colors.extend(['k', 'm'])
-
-    for k in range(24, 144, 24):
-        for setting in ['en', 'foreign', 'combined']:
-            fig, ax = plt.subplots(figsize=(14, 14))
-            plot_label = True
-            for task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
-                for ls in ['cross', 'multi']:
-                    accumulated = [0 for _ in range(12)]
-                    path_to_data = Path(f'head_probe_ranking/{setting}/{task}/{task}_{ls}-{task}-{setting}_layer_ranks.np')
-                    data = pd.read_csv(path_to_data, index_col=0)[:k]
-                    for _, d in data.iterrows():
-                        accumulated[int(d)] += 1
-                    sum_ = 0
-                    for j in range(12):
-                        if plot_label:
-                            ax.bar([f'{task}_{ls}'], accumulated[j], color=colors[j], bottom=sum_, label=j)
-                        else:
-                            ax.bar([f'{task}_{ls}'], accumulated[j], color=colors[j], bottom=sum_, label=f'_{j}')
-                        sum_ += accumulated[j]
-                    plot_label = False
-            
-            plt.legend(loc='upper right')
-            plt.savefig(f'head_probe_ranking/{setting}/ranks_{k}.pdf', bbox_inches='tight')
-
-def plot_ranked_heads_3():
-    colors = [f'tab:{c}' for c in ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']]
-    colors.extend(['k', 'm'])
-    scores = [i for i in range(1, 145)][::-1]
-    # scores = [(s-1)/(144-1) for s in scores]
-    scores = [s/sum(scores) for s in scores]
-
-    for setting in ['en', 'foreign', 'combined']:
-        fig, ax = plt.subplots(figsize=(14, 14))
-        plot_label = True
-        for task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
-            for ls in ['cross', 'multi']:
                 accumulated = [0 for _ in range(12)]
-                path_to_data = Path(f'head_probe_ranking/{setting}/{task}/{task}_{ls}-{task}-{setting}_layer_ranks.np')
-                data = pd.read_csv(path_to_data, index_col=0)
-                for idx, d in data.iterrows():
-                    accumulated[int(d)] += scores[idx]
-                sum_ = 0
-                for j in range(12):
-                    if plot_label:
-                        ax.bar([f'{task}_{ls}'], accumulated[j], color=colors[j], bottom=sum_, label=j)
-                    else:
-                        ax.bar([f'{task}_{ls}'], accumulated[j], color=colors[j], bottom=sum_, label=f'_{j}')
-                    sum_ += accumulated[j]
-                plot_label = False
-            
-        plt.legend(loc='upper right')
-        plt.savefig(f'head_probe_ranking/{setting}/ranks_weighted.pdf', bbox_inches='tight')
+                data = pd.read_csv(path_to_data, index_col=0)[:k]
+
+                # get no. top heads per layer, normalize, and cumulative sum
+                for _, d in data.iterrows():
+                    accumulated[int(d)] += 1
+                accumulated = [a / sum(accumulated) for a in accumulated]
+                # accumulated = np.cumsum(accumulated)
+                data_for_model.append(accumulated)
+
+            df_for_model = pd.DataFrame(data_for_model)
+            df_for_model.index = list(range(24, 144, 24))
+            dataframes.append(df_for_model)
+    
+    return dataframes
+
+def get_colors_as_hex():
+    mcolors.TABLEAU_COLORS
+    mcolors.XKCD_COLORS
+    mcolors.CSS4_COLORS
+
+    cs = [
+        "blue",
+        "orange",
+        "green",
+        "red",
+        "purple",
+        'brown',
+        'pink',
+        'gray',
+        'olive',
+        'cyan']
+    cs = [f'tab:{c}' for c in cs]
+    cs.extend(['k', 'yellow'])
+
+    #Base colors are in RGB so they need to be converted to HEX
+    BASE_COLORS_hex = {name:mcolors.rgb2hex(color) for name,color in mcolors.BASE_COLORS.items()}
+
+
+    all_named_colors = {}
+    all_named_colors.update(mcolors.TABLEAU_COLORS)
+    all_named_colors.update(BASE_COLORS_hex)
+    all_named_colors.update(mcolors.CSS4_COLORS)
+    all_named_colors.update(mcolors.XKCD_COLORS)
+
+    return [all_named_colors[c] for c in cs]
+
+def plot_altair(dfs):
+    columns = []
+    for pair in itertools.product(['POS', 'NER', 'PI', 'SA', 'XNLI'], ['cross-ling', 'multi-ling']):
+        columns.append(f'{pair[0]}-{pair[1]}')
+    
+    def prep_df(df, layer_idx):
+        df = df.stack().reset_index()
+        df.columns = ['k', 'model', 'nHeads']
+        df['Layer'] = layer_idx
+        return df
+
+    layer_dfs = []
+    for layer in range(12):
+        d = []
+        for df in dfs:
+            d.append(df.iloc[:, layer])
+        d = pd.concat(d, axis=1)
+        d.index = [f'k={k}' for k in list(range(24, 144, 24))]
+        d.columns = columns
+        layer_dfs.append(d)
+    
+    dfs = []
+    for i in range(12, 0, -1):
+        prepped_df = prep_df(layer_dfs[i-1], i)
+        dfs.append(prepped_df)
+    
+    df = pd.concat(dfs)
+    colors = get_colors_as_hex()
+    
+    chart = alt.Chart(df).mark_bar().encode(
+        # tell Altair which field to group columns on
+        x=alt.X('model:N', title='', axis=alt.Axis(labelAngle=-45), sort=columns),
+
+        # tell Altair which field to use as Y values and how to calculate
+        y=alt.Y(
+            'nHeads:Q',
+            axis=alt.Axis(grid=False, title='layer-wise distribution of top-k attention heads'),
+            scale=alt.Scale(domain=(0, 1))),
+
+        # tell Altair which field to use to use as the set of columns to be  represented in each group
+        # hack: title is model so we can move it to the bottom later
+        column=alt.Column('k:O', title='model', sort=[f'k={k}' for k in list(range(24, 144, 24))]),
+
+        # tell Altair which field to use for color segmentation 
+        color=alt.Color('Layer:N', scale=alt.Scale(range=colors), sort=list(range(1, 13))[::-1]),
+
+        order=alt.Order('Layer', sort='ascending')
+    ).configure_view(
+        strokeOpacity=0
+    ).configure_header(
+        titleOrient='bottom'
+    )
+
+    return chart
 
 if __name__ == '__main__':
     # rank_heads()
-    plot_ranked_heads_3()
+    for setting in ['en', 'foreign', 'combined']:
+        save_path = Path(f'head_probe_ranking/plots/plot_topk/{setting}_ranks.svg')
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        dataframes = preprocess_ranked_heads(setting)
+        ax = plot_altair(dataframes)
+        altair_saver.save(ax, str(save_path))
