@@ -99,20 +99,23 @@ def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, di
         max_ = np.amax(heatmap)
         heatmap /= max_
     
+    font_size = 25
     plt.figure(figsize=(14, 14))
-    annot_kws = {'fontsize': 20}
+    annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         heatmap,
         cbar=False,
-        annot=True,
+        annot=False,
         annot_kws=annot_kws,
+        xticklabels=list(range(1, 13)),
+        yticklabels=list(range(1, 13)),
         fmt=".2f")
 
     ax.invert_yaxis()
-    ax.set_xlabel('heads', fontsize=20)
-    ax.set_ylabel('layers', fontsize=20)
-    ax.tick_params(axis='x', labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.set_xlabel('heads', fontsize=font_size)
+    ax.set_ylabel('layers', fontsize=font_size)
+    ax.tick_params(axis='x', labelsize=font_size)
+    ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
     fig.savefig(heatmap_out_file, bbox_inches='tight')
@@ -243,6 +246,12 @@ def get_mean_across_seeds(task, setting, return_df_only=True):
     fig = ax.get_figure()
     fig.savefig(heatmap_out_file, bbox_inches='tight')
 
+def main_sequence(model_ckpt, model_name, output_dir):
+    if model_name == '':
+        model_name = Path(model_ckpt).with_suffix('').name
+
+    save_all_kqv(model_ckpt, output_dir)
+    compare_kqv(model_name, output_dir)
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -251,73 +260,60 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default='')
     args = parser.parse_args()
 
-    # for task in ['NLI']:
-    #     for setting in ['cross', 'multi']:
-    #         # for seed in ['1', '2']:
-    #         args.model_ckpt = list(Path(f'checkpoint/{task}_{setting}').rglob("*.pt"))[0]
-    #         save_all_kqv(args.model_ckpt, args.output_dir)
-
-    # for task in ['NLI']:
-    #     for setting in ['cross', 'multi']:
-    #         for seed in range(3):
-    #             model_name = f'{task}_{setting}'
-    #             # if seed > 0:
-    #             #     model_name += f'_seed{seed}'
-    #             compare_kqv(model_name, args.output_dir)
-
-        # compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
+    main_sequence(args.model_ckpt, args.model_name, args.output_dir)
+    # compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
 
     # for task in ['NLI', 'MARC', 'PAWSX', 'POS', 'NER']:
     #     for setting in ['cross', 'multi']:
     #         get_mean_across_seeds(task, setting)
     
-    crosses_data = []
-    multis_data = []
-    crosses_p = []
-    multis_p = []
+    # crosses_data = []
+    # multis_data = []
+    # crosses_p = []
+    # multis_p = []
 
-    tasks = ['NLI', 'POS', 'NER', 'PAWSX', 'MARC']
-    for task in tasks:
-        # rho, p = get_spearmans_rho(task)
-        cross_data, multi_data = get_spearmans_rho(task)
-        crosses_data.append([cross_data[i][0] for i in range(3)])
-        multis_data.append([multi_data[i][0] for i in range(3)])
-        crosses_p.append([cross_data[i][1] for i in range(3)])
-        multis_p.append([multi_data[i][1] for i in range(3)])
-        seeds = [multi_data[i][2] for i in range(3)]
+    # tasks = ['NLI', 'POS', 'NER', 'PAWSX', 'MARC']
+    # for task in tasks:
+    #     # rho, p = get_spearmans_rho(task)
+    #     cross_data, multi_data = get_spearmans_rho(task)
+    #     crosses_data.append([cross_data[i][0] for i in range(3)])
+    #     multis_data.append([multi_data[i][0] for i in range(3)])
+    #     crosses_p.append([cross_data[i][1] for i in range(3)])
+    #     multis_p.append([multi_data[i][1] for i in range(3)])
+    #     seeds = [multi_data[i][2] for i in range(3)]
     
-    for i, (rhos, ps) in enumerate(zip([crosses_data, multis_data], [crosses_p, multis_p])):
-        if i == 0:
-            setting = 'cross'
-        else:
-            setting = 'multi'
+    # for i, (rhos, ps) in enumerate(zip([crosses_data, multis_data], [crosses_p, multis_p])):
+    #     if i == 0:
+    #         setting = 'cross'
+    #     else:
+    #         setting = 'multi'
         
-        rho_file = Path(f'kqv_outputs/{setting}_3seeds_separate_rho.csv')
-        df = pd.DataFrame(rhos)
-        df.columns = seeds
-        df.index = tasks
-        df.to_csv(rho_file)
+    #     rho_file = Path(f'kqv_outputs/{setting}_3seeds_separate_rho.csv')
+    #     df = pd.DataFrame(rhos)
+    #     df.columns = seeds
+    #     df.index = tasks
+    #     df.to_csv(rho_file)
 
-        ps = pd.DataFrame(ps)
-        ps.columns = seeds
-        ps.index = tasks
-        ps.to_csv(f'kqv_outputs/{setting}_3seeds_separate_p.csv')
+    #     ps = pd.DataFrame(ps)
+    #     ps.columns = seeds
+    #     ps.index = tasks
+    #     ps.to_csv(f'kqv_outputs/{setting}_3seeds_separate_p.csv')
 
-        plt.figure(figsize=(14, 14))
-        annot_kws = {'fontsize': 20}
-        ax = sns.heatmap(
-            df,
-            cbar=False,
-            annot=True,
-            annot_kws=annot_kws,
-            fmt=".2f")
+    #     plt.figure(figsize=(14, 14))
+    #     annot_kws = {'fontsize': 20}
+    #     ax = sns.heatmap(
+    #         df,
+    #         cbar=False,
+    #         annot=True,
+    #         annot_kws=annot_kws,
+    #         fmt=".2f")
 
-        # ax.set_xlabel('rho', fontsize=20)
-        ax.set_ylabel('tasks', fontsize=20)
-        ax.tick_params(axis='x', labelsize=20)
-        ax.tick_params(axis='y', labelsize=20)
+    #     # ax.set_xlabel('rho', fontsize=20)
+    #     ax.set_ylabel('tasks', fontsize=20)
+    #     ax.tick_params(axis='x', labelsize=20)
+    #     ax.tick_params(axis='y', labelsize=20)
 
-        fig = ax.get_figure()
-        fig.savefig(f'kqv_outputs/{setting}_3seeds_separate_rho.pdf', bbox_inches='tight')
+    #     fig = ax.get_figure()
+    #     fig.savefig(f'kqv_outputs/{setting}_3seeds_separate_rho.pdf', bbox_inches='tight')
 
     # plot_spearmans_rho(languages)

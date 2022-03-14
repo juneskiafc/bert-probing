@@ -27,7 +27,6 @@ from train_utils import (
 )
 from gradient_probing import prediction_gradient
 import wandb
-import transformers
 
 def model_config(parser):
     # SET THESE
