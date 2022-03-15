@@ -14,7 +14,9 @@ def probe_heads(setting: LingualSetting,
                 finetuned_task: Experiment,
                 task: Experiment,
                 models_per_gpu: int = 2,
-                devices: List = list(range(torch.cuda.device_count()))):
+                devices: List = list(range(torch.cuda.device_count())),
+                epochs: int = 1,
+                wandb: bool = False):
     """
     Probe heads for a model.
 
@@ -38,7 +40,7 @@ def probe_heads(setting: LingualSetting,
     heads_to_probe = []
     for hl, hi in itertools.product(range(12), repeat=2):
         dir_for_head = checkpoint_dir.joinpath(setting.name.lower(), str(hl), str(hi))
-        if len(list(dir_for_head.rglob('model_1_*.pt'))) == 0:
+        if len(list(dir_for_head.rglob('*.pt'))) == 0:
             heads_to_probe.append((hl, hi))
     
     if len(heads_to_probe) == 0:
@@ -69,9 +71,12 @@ def probe_heads(setting: LingualSetting,
             finetuned_checkpoint = list(finetuned_checkpoint_dir.rglob('model_5*.pt'))[0]
             template += f"--resume --model_ckpt {finetuned_checkpoint} "
         
-        template += f"--epochs 2 --output_dir {checkpoint_dir_for_head} "
+        template += f"--epochs {epochs} --output_dir {checkpoint_dir_for_head} "
         template += f"--init_checkpoint bert-base-multilingual-cased --devices {did} "
-        template += f'--head_probe --head_probe_layer {hl} --head_probe_idx {hi} --head_probe_n_classes {n_classes}'
+        template += f'--head_probe --head_probe_layer {hl} --head_probe_idx {hi} --head_probe_n_classes {n_classes} '
+
+        if wandb:
+            template += f'--wandb --exp_name {finetuned_task.name}_{setting.name.lower()}->{task.name}'
 
         print(f'[{setting.name}] [GPU {did}] {finetuned_task.name}->{task.name} {(hl, hi)}')
         process = subprocess.Popen(template, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -150,8 +155,10 @@ if __name__ == '__main__':
     parser.add_argument('--downstream_setting', type=str, default='multi')
     parser.add_argument('--finetuned_task', type=str, default='NLI')
     parser.add_argument('--finetuned_setting', type=str, default='')
+    parser.add_argument('--epochs', type=int, default=1)
     parser.add_argument('--devices', nargs='+')
     parser.add_argument('--models_per_gpu', type=int, default=1)
+    parser.add_argument('--wandb', action='store_true')
     args = parser.parse_args()
 
     if args.devices is not None:
@@ -177,5 +184,7 @@ if __name__ == '__main__':
                 finetuned_task=Experiment[args.finetuned_task.upper()],
                 task=downstream_task,
                 devices=devices,
-                models_per_gpu=args.models_per_gpu
+                models_per_gpu=args.models_per_gpu,
+                wandb=args.wandb,
+                epochs=args.epochs
             )
