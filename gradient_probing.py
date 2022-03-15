@@ -1,4 +1,5 @@
 """ Fine-tuning the library models for named entity recognition on CoNLL-2003. """
+from asyncio import all_tasks
 import torch
 import einops
 from mt_dnn.batcher import Collater
@@ -8,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from scipy.stats import spearmanr, pearsonr
-from itertools import product
+from itertools import product, combinations
 from experiments.exp_def import LingualSetting, Experiment
 
 def min_max_norm(matrix):
@@ -59,31 +60,51 @@ def compute_correlation(method='pearson'):
     root = Path('gradient_probe_outputs')
     settings = list(LingualSetting)
     settings.remove(LingualSetting.BASE)
+    conversion = {
+        'NLI': "XNLI",
+        'PAWSX': 'PI',
+        'MARC': 'SA'
+    }
 
-    all_tasks_settings = list(product(list(Experiment), settings))
-    all_tasks_settings_a = [f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_en' for n in all_tasks_settings]
-    all_tasks_settings_a.extend([f'{n[0].name}/{n[0].name}_{n[1].name.lower()}_foreign' for n in all_tasks_settings])
-    all_tasks_settings_a.extend(['NLI/NLI_multi_foreign3', 'NLI/NLI_cross_foreign3'])
-    all_tasks_settings = all_tasks_settings_a
-    n = len(all_tasks_settings)
+    if not root.joinpath(f'rhos_{method}.csv').is_file():
+        # only cross-cross, multi-multi pairs
+        pairs = []
+        all_models = []
+        all_tasks = ['POS', 'NER', 'PI', 'SA', 'XNLI']
+        for setting in ['cross', 'multi']:
+            pool = []
+            for task in ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']:
+                pool.append(f'{task}/{task}_{setting}')
+            pool = list(combinations(pool, r=2))
+            pairs.extend(pool)
+        
+        for task in all_tasks:
+            for setting in ['cross', 'multi']:
+                all_models.append(f'{task}-{setting}-ling') 
+        
+        shape_ = (len(all_tasks), len(all_models))
+        rhos = pd.DataFrame(np.zeros(shape_))
+        ps = pd.DataFrame(-1 * np.ones(shape_))
 
-    pairs = product(all_tasks_settings, all_tasks_settings)
-    rhos = pd.DataFrame(np.zeros((n, n)))
-    ps = pd.DataFrame(-1 * np.ones((n, n)))
+        rhos.index = all_tasks
+        rhos.columns = all_models
+        ps.index = all_tasks
+        ps.columns = all_models
 
-    rhos.index = all_tasks_settings
-    rhos.columns = all_tasks_settings
-    ps.index = all_tasks_settings
-    ps.columns = all_tasks_settings
+        for pair in pairs:
+            task_a, setting = pair[0].split("/")[1].split("_")
+            task_b = pair[1].split("/")[1].split("_")[0]
 
-    for pair in pairs:
-        print(pair)
-        if pair[0] == pair[1]:
-            rho, p = 1, 0
-        else:
-            if ps.loc[pair[1], pair[0]] != -1:
-                p = ps.loc[pair[1], pair[0]]
-                rho = rhos.loc[pair[1], pair[0]]
+            if task_a in conversion:
+                task_a = conversion[task_a]
+            if task_b in conversion:
+                task_b = conversion[task_b]
+            
+            model = f'{task_a}-{setting}-ling'
+
+            if ps.loc[task_a, f'{task_b}-{setting}-ling'] > -1:
+                rho = rhos.loc[task_a, f'{task_b}-{setting}-ling']
+                p = ps.loc[task_a, f'{task_b}-{setting}-ling']
             else:
                 a = root.joinpath(f'{pair[0]}_gp', 'grad.pt')
                 b = root.joinpath(f'{pair[1]}_gp', 'grad.pt')
@@ -97,28 +118,41 @@ def compute_correlation(method='pearson'):
                     rho, p = spearmanr(a, b)
                 elif method == 'pearson':
                     rho, p = pearsonr(a, b)
+            
+            rhos.loc[task_b, model] = rho
+            ps.loc[task_b, model] = p
+
+            # mirror image
+            rhos.loc[task_a, f'{task_b}-{setting}-ling'] = rho
+            ps.loc[task_a, f'{task_b}-{setting}-ling'] = p
+
+            print(pair, (task_b, model), rho)
         
-        rhos.loc[pair[0], pair[1]] = rho
-        ps.loc[pair[0], pair[1]] = p
-    
-    rhos.to_csv(root.joinpath('rhos.csv'))
-    ps.to_csv(root.joinpath('ps.csv'))
+        for task in all_tasks:
+            for setting in ['cross', 'multi']:
+                rhos.loc[task, f'{task}-{setting}-ling'] = 1
+                ps.loc[task, f'{task}-{setting}-ling'] = 0
+        
+        rhos.to_csv(root.joinpath(f'rhos_{method}.csv'))
+        ps.to_csv(root.joinpath(f'ps_{method}.csv'))
 
-    rhos = pd.read_csv(root.joinpath('rhos.csv'), index_col=0)
-    ps = pd.read_csv(root.joinpath('ps.csv'), index_col=0)
+    rhos = pd.read_csv(root.joinpath(f'rhos_{method}.csv'), index_col=0)
+    ps = pd.read_csv(root.joinpath(f'ps_{method}.csv'), index_col=0)
 
-    for data in [('rhos.pdf', rhos), ('ps.pdf', ps)]:
+    font_size = 40
+    for data in [(f'rhos_{method}.pdf', rhos), (f'ps_{method}.pdf', ps)]:
         plt.figure(figsize=(20, 20))
-        annot_kws = {'fontsize': 20}
+        annot_kws = {'fontsize': font_size}
         ax = sns.heatmap(
             data[1],
             cbar=False,
             annot=True,
             annot_kws=annot_kws,
-            fmt=".2f")
+            fmt=".2f",
+            square=True)
 
-        ax.tick_params(axis='x', labelsize=20, labelrotation=90)
-        ax.tick_params(axis='y', labelsize=20, labelrotation=0)
+        ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor', fontsize=font_size)
+        ax.tick_params(axis='y', labelsize=font_size, labelrotation=0)
 
         fig = ax.get_figure()
         fig.savefig(root.joinpath(data[0]), bbox_inches='tight')
@@ -163,3 +197,5 @@ def prediction_gradient(args, model, dataloader, save_path):
 
 if __name__ == '__main__':
     prediction_gradient()
+    for method in ['pearson', 'spearman']:
+        compute_correlation(method)
