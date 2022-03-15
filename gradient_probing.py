@@ -34,21 +34,24 @@ def raw_to_final_form(raw_attention_gradients):
 
     return attention_gradients
 
-def plot_heatmap(attention_gradients, output_path):    
+def plot_heatmap(attention_gradients, output_path):   
+    font_size = 30 
     plt.figure(figsize=(14, 14))
-    annot_kws = {'fontsize': 20}
+    annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         attention_gradients,
         cbar=False,
-        annot=True,
+        annot=False,
         annot_kws=annot_kws,
+        xticklabels=list(range(1, 13)),
+        yticklabels=list(range(1, 13)),
         fmt=".2f")
 
     ax.invert_yaxis()
-    ax.set_xlabel('heads', fontsize=20)
-    ax.set_ylabel('layers', fontsize=20)
-    ax.tick_params(axis='x', labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.set_xlabel('heads', fontsize=font_size)
+    ax.set_ylabel('layers', fontsize=font_size)
+    ax.tick_params(axis='x', labelsize=font_size)
+    ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
     fig.savefig(output_path, bbox_inches='tight')
@@ -193,5 +196,6 @@ def prediction_gradient(args, model, dataloader, save_path):
     plot_heatmap(attention_gradients, save_path.joinpath('grad.pdf'))
 
 if __name__ == '__main__':
-    for method in ['pearson', 'spearman']:
-        compute_correlation(method)
+    attention_gradients = torch.load('gradient_probe_outputs/NLI_multi_4lang_gp/grad.pt')
+    attention_gradients = raw_to_final_form(attention_gradients)
+    plot_heatmap(attention_gradients, 'gradient_probe_outputs/NLI_multi_4lang_gp/grad.pdf')
