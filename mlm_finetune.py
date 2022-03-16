@@ -162,7 +162,7 @@ def main():
     # env variables
     os.environ['WANDB_PROJECT'] = 'soroush'
     training_args.disable_tqdm = True
-    training_args.num_train_epochs = 6
+    training_args.num_train_epochs = 2
     training_args.do_train = True
     training_args.output_dir = training_args.output_dir + f"/mlm_finetuned/huggingface/{training_args.run_name}/"
 
@@ -222,7 +222,7 @@ def main():
     )
     
     if model_args.mtdnn_checkpoint != '':
-        mtdnn = torch.load(model_args.mtdnn_checkpoint, map_location=f'cuda:{data_args.device}')['state']
+        mtdnn = torch.load(model_args.mtdnn_checkpoint, map_location=f'{training_args.device}')['state']
         # these are leftovers from NLI finetuning, get rid
         for param in [
             'bert.pooler.dense.weight',

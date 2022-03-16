@@ -375,8 +375,8 @@ if __name__ == '__main__':
             model_name = Path(args.model_ckpt).parent.name
         else:
             model_name = 'mBERT'
-        # model_name = f'{task.name}_EN-FR-DE-ES'
-        langs = ['en', 'es', 'fr', 'de']
+        langs = ['foreign']
+        # langs = ['en', 'es', 'fr', 'de']
         # langs = [
         #     'en',
         #     'es_0',
@@ -391,7 +391,6 @@ if __name__ == '__main__':
             model_name,
             args.model_ckpt,
             args.huggingface_ckpt,
-            # ['en', 'es', 'fr', 'de'],
             langs,
             device_id=args.device_id
         )
