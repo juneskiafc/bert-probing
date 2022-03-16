@@ -108,7 +108,7 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         assert os.path.exists(checkpoint), checkpoint
     else:
         # dummy.
-        checkpoint_dir = Path('checkpoint').joinpath(f'MARC_multi')
+        checkpoint_dir = Path('checkpoint').joinpath(f'PAWSX_multi')
         checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
 
     state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
@@ -295,40 +295,25 @@ def combine_all_model_probe_scores(mean=True, std=True):
 
 def get_model_probe_final_score(
     finetuned_task: Experiment,
-    finetuned_setting: LingualSetting,
-    probe_setting: LingualSetting):
+    finetuned_setting: LingualSetting):
 
     final_results_out_file = Path(f'model_probe_outputs').joinpath(
-        # f'{probe_setting.name.lower()}_training',
         f'{finetuned_task.name}_{finetuned_setting.name.lower()}',
         'evaluation_results.csv')
 
     result_path_for_finetuned_model = final_results_out_file.parent.joinpath('results.csv')
     
     result_path_for_mBERT = Path(f'model_probe_outputs').joinpath(
-            # f'{probe_setting.name.lower()}_training',
             f'mBERT',
             'results.csv')
     
     finetuned_results = pd.read_csv(result_path_for_finetuned_model, index_col=0)
     mBERT_results = pd.read_csv(result_path_for_mBERT, index_col=0)
 
-    # print(finetuned_results)
-    # print(mBERT_results)
-
     final_results = pd.DataFrame(finetuned_results.values - mBERT_results.values)
     final_results.index = finetuned_results.index
     final_results.columns = finetuned_results.columns
     final_results.to_csv(final_results_out_file)
-
-    # create_heatmap(
-    #     data_df=final_results,
-    #     row_labels=finetuned_results.index,
-    #     column_labels=finetuned_results.columns,
-    #     xaxlabel='task',
-    #     yaxlabel='model',
-    #     out_file=final_results_out_file.with_suffix('')
-    # )
 
 
 def get_model_probe_scores(
@@ -351,7 +336,6 @@ def get_model_probe_scores(
         model_name = f'{finetuned_task.name}_{finetuned_setting.name.lower()}'
 
     results_out_file = Path(f'model_probe_outputs').joinpath(
-        f'{probe_setting.name.lower()}_training',
         model_name,
         f'{out_file_name}.csv')
 
@@ -391,6 +375,130 @@ def get_model_probe_scores(
         
     results.to_csv(results_out_file)
 
+def create_perlang_results(target_task, langs):
+    def get_data(root, version=0):
+        data = pd.DataFrame(np.zeros((1, len(langs))))
+        data.columns = langs
+
+        for results_file in root.rglob("*.csv"):
+            name_ = results_file.with_suffix('').name
+            if version == 0:
+                try:
+                    task = name_.split("-")[1]
+                except:
+                    raise ValueError(name_)
+                lang = name_.split("-")[-1].split('.')[0]
+            else:
+                task = name_.split("_")[0]
+                lang = name_.split("_")[1]
+            if task == target_task:
+                results = pd.read_csv(results_file, index_col=0)
+                data.loc[:, lang] = results.iloc[0,0]
+        
+        return data
+
+    root = Path('model_probe_outputs/NLI_multi')
+    model_data = get_data(root, 0)
+
+    base = root.parent.joinpath('mBERT')
+    base_data = get_data(base, 1)
+
+    data = model_data - base_data
+    data.index = ['XNLI-4lang']
+
+    output_path = root.parent.joinpath(f'results/{target_task}-results.pdf')
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    data.to_csv(output_path.with_suffix(".csv"))
+
+def combine_and_heatmap(tasks, index=None):
+    data = []
+    for task in tasks:
+        data_for_task = pd.read_csv(f'model_probe_outputs/results/{task}-results.csv', index_col=0)
+        data.append(data_for_task)
+    
+    data = pd.concat(data, axis=0)
+    data.index = index
+
+    font_size = 30
+    plt.figure(figsize=(14, 14))
+    annot_kws = {'fontsize': font_size}
+    ax = sns.heatmap(
+        data,
+        cbar=False,
+        annot=True,
+        annot_kws=annot_kws,
+        fmt=".2f",
+        square=True)
+
+    ax.tick_params(axis='x', labelsize=font_size)
+    ax.tick_params(axis='y', labelsize=font_size, labelrotation=0)
+
+    fig = ax.get_figure()
+    fig.savefig(f'model_probe_outputs/results/combined_result.pdf', bbox_inches='tight')
+
+def get_scores_main(args):
+    for task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
+        if task == 'NLI':
+            langs = [
+                'ar',
+                'bg',
+                'de',
+                'el',
+                'en',
+                'es',
+                'fr',
+                'hi',
+                'ru',
+                'sw',
+                'th',
+                'tr',
+                'ur',
+                'vi',
+                'zh'
+            ]
+        else:
+            langs = ['en', 'fr', 'de', 'es']
+        
+        # for lang in langs:
+        #     out_file = f'NLI_4lang-{task}-{lang}'
+
+        #     get_model_probe_scores(
+        #         Experiment.NLI,
+        #         LingualSetting.MULTI,
+        #         LingualSetting.CROSS,
+        #         Experiment[task],
+        #         list(Path(f'checkpoint/NLI_multi_4lang:{task}').rglob("model_1_*.pt"))[0],
+        #         out_file,
+        #         args.metric,
+        #         args.device_id,
+        #         lang,
+        #         args.batch_size,
+        #         args.max_seq_len,
+        #     )
+        
+        out_file = f'{task}-foreign'
+        get_model_probe_scores(
+            Experiment.NLI,
+            LingualSetting.BASE,
+            LingualSetting.CROSS,
+            Experiment[task],
+            list(Path(f'checkpoint/NLI_multi_4lang:{task}').rglob("model_1_*.pt"))[0],
+            out_file,
+            args.metric,
+            args.device_id,
+            'foreign',
+            args.batch_size,
+            args.max_seq_len,
+        )
+
+def create_perlang_heatmap(args):
+    tasks = ['NLI', 'POS', 'NER', 'PAWSX', 'MARC']
+    for task in tasks:
+        langs = ['foreign', 'en']
+        create_perlang_results(task, langs)
+
+    combine_and_heatmap(['NLI', 'POS', 'NER', 'PAWSX', 'MARC'], ['XNLI', 'POS', 'NER', 'PI', 'SA'])
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--device_id', type=int, default=0)
@@ -404,53 +512,6 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
-    
-    langs = [
-        'ar',
-        'bg',
-        'de',
-        'el',
-        'en',
-        'es',
-        'fr',
-        'hi',
-        'ru',
-        'sw',
-        'th',
-        'tr',
-        'ur',
-        'vi',
-        'zh'
-    ]
-    for task in ['NLI']:
-        for lang in langs:
-            # for seed in range(3):
-            # model_ckpt = Path(f'checkpoint/{args.finetuned_task}/{args.finetuned_setting}/{task}/0')
-            # model_ckpt = list(model_ckpt.rglob('*.pt'))[0]
-            out_file = f'{task}_{lang}_results'
 
-            get_model_probe_scores(
-                Experiment[args.finetuned_task] if args.finetuned_task != '' else None,
-                LingualSetting[args.finetuned_setting.upper()],
-                LingualSetting[args.probe_setting.upper()],
-                # Experiment[args.probe_task] if args.probe_task != '' else None,
-                Experiment[task],
-                # args.model_ckpt if args.model_ckpt != '' else None,
-                # model_ckpt,
-                None,
-                # args.out_file_name,
-                out_file,
-                args.metric,
-                args.device_id,
-                lang,
-                args.batch_size,
-                args.max_seq_len,
-            )
-
-    # get_model_probe_final_score(
-    #     Experiment[args.finetuned_task],
-    #     LingualSetting[args.finetuned_setting.upper()],
-    #     LingualSetting[args.probe_setting.upper()]
-    # )
-
-    # combine_all_model_probe_scores()
+    # get_scores_main(args)
+    create_perlang_heatmap(args)

@@ -42,6 +42,8 @@ def plot_heatmap(attention_gradients, output_path):
         cbar=False,
         annot=False,
         annot_kws=annot_kws,
+        xticklabels=list(range(1, 13)),
+        yticklabels=list(range(1, 13)),
         fmt=".2f")
 
     ax.invert_yaxis()

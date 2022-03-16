@@ -444,7 +444,7 @@ def main():
         
         # load model, making sure to match scoring_list params
         if args.model_ckpt != '':
-            state_dict = torch.load(args.model_ckpt)
+            state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
             state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
             state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
             model.load_state_dict(state_dict)

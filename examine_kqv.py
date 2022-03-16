@@ -118,11 +118,11 @@ def create_ranked_heads_heatmap(diffs_file, out_file, normalize=True, diffs=None
     fig = ax.get_figure()
     fig.savefig(out_file, bbox_inches='tight')
 
-def compare_kqv_across_multiple(task_name_a, task_name_b):
-    cross_diffs = np.load(f'kqv_outputs/results/{task_name_a}_diffs.npy')
-    multi_diffs = np.load(f'kqv_outputs/results/{task_name_b}_diffs.npy')
+def get_kqv_update_diff(diffs, output_dir):
+    out_name = Path(diffs[0]).with_suffix('').name + "-" + Path(diffs[1]).with_suffix('').name
+    diffs_a, diffs_b = [np.load(d) for d in diffs]
 
-    heatmap = cross_diffs - multi_diffs
+    heatmap = diffs_a - diffs_b
     heatmap = (2 * ((heatmap - np.amin(heatmap)) / (np.amax(heatmap) - np.amin(heatmap)))) - 1
 
     font_size = 45
@@ -135,6 +135,8 @@ def compare_kqv_across_multiple(task_name_a, task_name_b):
         cbar=False,
         annot=False,
         annot_kws=annot_kws,
+        xticklabels=list(range(1, 13)),
+        yticklabels=list(range(1, 13)),
         fmt=".2f")
     
     ax.invert_yaxis()
@@ -146,9 +148,15 @@ def compare_kqv_across_multiple(task_name_a, task_name_b):
     ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
-    fig.savefig(f'kqv_outputs/{task_name_a}-{task_name_b}_comp_ranked_heads_by_absdiff.pdf', bbox_inches='tight')
+    fig.savefig(Path(output_dir).joinpath('results', f'{out_name}.pdf'), bbox_inches='tight')
 
-def get_spearmans_rho(task):
+def get_spearmans_rho(diffs):
+    diffs = [np.load(d) for d in diffs]
+    diffs_a, diffs_b = [np.expand_dims(d.flatten(), axis=1) for d in diffs]
+    rho, p = spearmanr(diffs_a, diffs_b)
+    return rho, p
+
+def get_spearmans_rho_between_seeds(task):
     # cross_diffs = get_mean_across_seeds(task, 'cross', True)
     # multi_diffs = get_mean_across_seeds(task, 'multi', True)
 
@@ -249,7 +257,7 @@ def get_mean_across_seeds(task, setting, return_df_only=True):
 
 def main_sequence(model_ckpt, model_name, output_dir):
     if model_name == '':
-        model_name = Path(model_ckpt).with_suffix('').name
+        model_name = Path(model_ckpt).parent.name
 
     save_all_kqv(model_ckpt, output_dir)
     compare_kqv(model_name, output_dir)
@@ -259,10 +267,14 @@ if __name__ == "__main__":
     parser.add_argument('--model_ckpt', type=str, default='')
     parser.add_argument('--output_dir', type=str, default='kqv_outputs')
     parser.add_argument('--model_name', type=str, default='')
+
+    parser.add_argument('--diffs_to_compare', nargs='+')
     args = parser.parse_args()
 
-    main_sequence(args.model_ckpt, args.model_name, args.output_dir)
-    # compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')
+    # main_sequence(args.model_ckpt, args.model_name, args.output_dir)
+    # get_kqv_update_diff(args.diffs_to_compare, args.output_dir)
+    rho, p = get_spearmans_rho(args.diffs_to_compare)
+    print(rho, p)
 
     # for task in ['NLI', 'MARC', 'PAWSX', 'POS', 'NER']:
     #     for setting in ['cross', 'multi']:
