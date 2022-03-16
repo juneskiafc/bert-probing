@@ -87,9 +87,7 @@ def compare_kqv(model_name, output_dir):
     
     create_ranked_heads_heatmap(output_diffs_file, output_dir, model_name)
 
-def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, diffs=None):
-    heatmap_out_file = output_dir.joinpath(f'results/{task}_ranked_heads_by_absdiff.pdf')
-    
+def create_ranked_heads_heatmap(diffs_file, out_file, normalize=True, diffs=None):    
     if diffs is None:
         heatmap = np.load(diffs_file)
     else:
@@ -118,7 +116,7 @@ def create_ranked_heads_heatmap(diffs_file, output_dir, task, normalize=True, di
     ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
-    fig.savefig(heatmap_out_file, bbox_inches='tight')
+    fig.savefig(out_file, bbox_inches='tight')
 
 def get_kqv_update_diff(diffs, output_dir):
     out_name = Path(diffs[0]).with_suffix('').name + "-" + Path(diffs[1]).with_suffix('').name
@@ -127,8 +125,8 @@ def get_kqv_update_diff(diffs, output_dir):
     heatmap = diffs_a - diffs_b
     heatmap = (2 * ((heatmap - np.amin(heatmap)) / (np.amax(heatmap) - np.amin(heatmap)))) - 1
 
-    font_size = 30
-    plt.figure(figsize=(14, 14))
+    font_size = 45
+    plt.figure(figsize=(20, 16))
     annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         heatmap,
@@ -142,6 +140,8 @@ def get_kqv_update_diff(diffs, output_dir):
         fmt=".2f")
     
     ax.invert_yaxis()
+    ax.set_xticklabels(list(range(1, 13)))
+    ax.set_yticklabels(list(range(1, 13)))
     ax.set_xlabel('heads', fontsize=font_size)
     ax.set_ylabel('layers', fontsize=font_size)
     ax.tick_params(axis='x', labelsize=font_size)
@@ -329,4 +329,19 @@ if __name__ == "__main__":
     #     fig = ax.get_figure()
     #     fig.savefig(f'kqv_outputs/{setting}_3seeds_separate_rho.pdf', bbox_inches='tight')
 
-    # plot_spearmans_rho(languages)
+def create_final_ranked_heads_figure(args):
+    for task in ['MARC', 'NER', 'NLI', 'PAWSX', 'POS']:
+        for setting in ['cross', 'multi']:
+            diffs_file = f'kqv_outputs/results/{task}_{setting}_diffs.npy'
+            output_file = Path(args.output_dir).joinpath(f'{task}_{setting}.pdf')
+            create_ranked_heads_heatmap(diffs_file, output_file, task)
+    
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument('--model_ckpt', type=str, default='')
+    parser.add_argument('--output_dir', type=str, default='kqv_outputs')
+    parser.add_argument('--model_name', type=str, default='')
+    args = parser.parse_args()
+    
+    for task in ['MARC', 'NER', 'NLI', 'PAWSX', 'POS']:
+        compare_kqv_across_multiple(f'{task}_cross', f'{task}_multi')

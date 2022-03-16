@@ -54,7 +54,7 @@ class MTDNNModel(object):
         # stats and misc
         self.total_param = sum([p.nelement() for p in model.parameters() if p.requires_grad])
         self.train_loss = AverageMeter()
-        self.head_probe = opt['head_probe']
+        self.head_probe = opt.get('head_probe', False)
 
     def load_state_dict(self, state_dict):
         self.network.load_state_dict(state_dict['state'], strict=True)

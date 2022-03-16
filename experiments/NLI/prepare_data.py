@@ -2,6 +2,7 @@ import csv
 import shutil
 import sys
 import jsonlines
+import numpy as np
 from pathlib import Path
 csv.field_size_limit(sys.maxsize)
 
@@ -87,33 +88,21 @@ def make_ltr_only_data():
     out_file.parent.mkdir(parents=True, exist_ok=True)
     raw_tsv_to_mtdnn_format([XNLI_TEST], out_file, excl_langs=['ar', 'ur', 'tr'])
 
-def make_per_language_multilingual_data(exclude_english=False, split='train'):
-    languages = set()
-    with jsonlines.open(XNLI_DEV) as f:
-        for row in f:
-            languages.add(row['language'])
+def make_per_language_multilingual_data(languages, split='train'):
+    if split == 'train':
+        datasets = [XNLI_DEV]
+    else:
+        datasets = [XNLI_TEST]
 
     for language in languages:
-        print(f'making dataset for {language}')
-        if exclude_english:
-            out_file = DATA_PATH.joinpath(f'{language}/{language}_{split}.tsv')
-        else:
-            out_file = DATA_PATH.joinpath(f'multi-{language}/multi-{language}_{split}.tsv')
-        
+        print(f'making {split} dataset for {language}')
+        out_file = DATA_PATH.joinpath(f'{language}/nli_{split}.tsv')
         out_file.parent.mkdir(exist_ok=True)
 
-        if split == 'train':
-            if not exclude_english:
-                datasets = [MNLI_TRAIN, XNLI_DEV]
-            else:
-                datasets = [XNLI_DEV]
-        elif split == 'test':
-            datasets = [XNLI_TEST]
-
-        if exclude_english and language != 'en':
-            raw_tsv_to_mtdnn_format(datasets, out_file, language=language, excl_langs=['en'])
-        else:
-            raw_tsv_to_mtdnn_format(datasets, out_file, language=language)
+        raw_tsv_to_mtdnn_format(
+            datasets,
+            out_file,
+            languages=[language])
 
 def make_evaluation_data():
     langs = [
@@ -146,5 +135,55 @@ def make_evaluation_data():
     fourlang_datasets = [f'experiments/NLI/{lang}/nli_test.tsv' for lang in langs if lang in ['en', 'fr', 'de', 'es']]
     combine_datasets(fourlang_datasets, 'experiments/NLI/4lang_combined/nli_test.tsv')
 
+def subsample_and_combine(foreign_dataset, ps):
+    fieldnames = ['id', 'label', 'premise', 'hypothesis']
+    with open(f'experiments/NLI/cross/nli_train.tsv', 'r') as f:
+        reader =csv.DictReader(f, delimiter='\t', fieldnames=fieldnames)
+        mnli_rows = [row for row in reader]
+
+    seeds = list(range(100, 500, 100))
+    with open(foreign_dataset, 'r') as fr:
+        reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
+        rows = [r for r in reader]
+        for p_idx, p in enumerate(ps):
+            np.random.seed(seeds[p_idx])
+            subsampled_idxs = np.random.choice(
+                np.arange(len(rows)),
+                size=int(len(rows)*p),
+                replace=False)
+            subsampled_rows = [rows[i] for i in subsampled_idxs]
+
+            out_file = Path(f'experiments/NLI/foreign_{p}/nli_train.tsv')
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(out_file, 'w') as fw:
+                writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
+                for row in subsampled_rows:
+                    writer.writerow(row)
+            
+                for r in mnli_rows:
+                    writer.writerow(r)
+
 if __name__ == '__main__':
-    raw_tsv_to_mtdnn_format([XNLI_TEST], Path('experiments/NLI/en/nli_test.tsv'), languages=['en'])
+    langs = [
+            'ar',
+            'bg',
+            'de',
+            'el',
+            'es',
+            'fr',
+            'hi',
+            'ru',
+            'sw',
+            'th',
+            'tr',
+            'ur',
+            'vi',
+            'zh',
+        ]
+    # make_per_language_multilingual_data(langs)
+    # datasets = [f'experiments/NLI/{lang}/nli_train.tsv' for lang in langs]
+    # combine_datasets(datasets, 'experiments/NLI/foreign/nli_train.tsv')
+    foreign_dataset = 'experiments/NLI/foreign/nli_train.tsv'
+    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+
