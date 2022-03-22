@@ -1,4 +1,4 @@
-nli:
+en:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:
@@ -7,7 +7,7 @@ nli:
   - entailment
   loss: CeCriterion
   metric_meta:
-  - F1MAC
+  - ACC
   n_class: 3
   split_names:
   - test

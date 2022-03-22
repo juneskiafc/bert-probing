@@ -34,21 +34,24 @@ def raw_to_final_form(raw_attention_gradients):
 
     return attention_gradients
 
-def plot_heatmap(attention_gradients, output_path):    
+def plot_heatmap(attention_gradients, output_path): 
+    font_size = 35
     plt.figure(figsize=(14, 14))
-    annot_kws = {'fontsize': 20}
+    annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         attention_gradients,
         cbar=False,
-        annot=True,
+        annot=False,
         annot_kws=annot_kws,
+        xticklabels=list(range(1, 13)),
+        yticklabels=list(range(1, 13)),
         fmt=".2f")
 
     ax.invert_yaxis()
-    ax.set_xlabel('heads', fontsize=20)
-    ax.set_ylabel('layers', fontsize=20)
-    ax.tick_params(axis='x', labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.set_xlabel('heads', fontsize=font_size)
+    ax.set_ylabel('layers', fontsize=font_size)
+    ax.tick_params(axis='x', labelsize=font_size)
+    ax.tick_params(axis='y', labelsize=font_size)
 
     fig = ax.get_figure()
     fig.savefig(output_path, bbox_inches='tight')
@@ -191,7 +194,33 @@ def prediction_gradient(args, model, dataloader, save_path):
 
     attention_gradients = raw_to_final_form(attention_gradients)
     plot_heatmap(attention_gradients, save_path.joinpath('grad.pdf'))
+    print(f"heatmap saved: {save_path.joinpath('grad.pdf')}")
+
+def prediction_gradient_with_pre_saved(task, setting, postfix=''):
+    name = f'{task}_{setting}'
+    if postfix != '':
+        name += f'_{postfix}'
+    name += '_gp'
+    name = f'{task}/{name}'
+
+    save_path = Path('gradient_probe_outputs').joinpath(name)
+    if not save_path.is_dir():
+        return
+    
+    attention_gradients = torch.load(save_path.joinpath('grad.pt'))
+
+    if postfix == '':
+        heatmap_save_path = Path('gradient_probe_outputs/results/combined')
+    else:
+        heatmap_save_path = Path('gradient_probe_outputs/results/split')
+    heatmap_save_path.mkdir(parents=True, exist_ok=True)
+
+    attention_gradients = raw_to_final_form(attention_gradients)
+    plot_heatmap(attention_gradients, heatmap_save_path.joinpath(f'{save_path.name}_grad.pdf'))
+    print(f"heatmap saved: {heatmap_save_path.joinpath(f'{save_path.name}_grad.pdf')}")
 
 if __name__ == '__main__':
-    for method in ['pearson', 'spearman']:
-        compute_correlation(method)
+    for task in ['MARC', 'POS', 'NER', 'PAWSX', 'NLI']:
+        for setting in ['cross', 'multi']:
+            for postfix in ['', 'en', 'foreign', 'foreign3']:
+                prediction_gradient_with_pre_saved(task, setting, postfix)

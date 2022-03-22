@@ -1,15 +1,15 @@
-multi-sw:
+nli:
   data_format: PremiseAndOneHypothesis
   enable_san: false
   split_names:
     - train
+    - test
   labels:
     - contradiction
     - neutral
     - entailment
   metric_meta:
-    - ACC
-    - F1
+    - F1MAC
   loss: CeCriterion
   n_class: 3
   task_type: Classification
