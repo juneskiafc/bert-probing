@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 nli:
+=======
+en:
+>>>>>>> 21c2ac2faa7d25ac2383c78cc833654bccb5853a
   data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:
@@ -7,7 +11,11 @@ nli:
   - entailment
   loss: CeCriterion
   metric_meta:
+<<<<<<< HEAD
   - F1MAC
+=======
+  - ACC
+>>>>>>> 21c2ac2faa7d25ac2383c78cc833654bccb5853a
   n_class: 3
   split_names:
   - train

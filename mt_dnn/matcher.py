@@ -11,7 +11,6 @@ from torch.nn.modules.normalization import LayerNorm
 from data_utils.task_def import EncoderModelType, TaskType
 import tasks
 from experiments.exp_def import TaskDef
-import transformers
 
 def generate_decoder_opt(enable_san, max_opt):
     opt_v = 0

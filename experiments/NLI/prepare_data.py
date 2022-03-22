@@ -181,11 +181,9 @@ if __name__ == '__main__':
             'vi',
             'zh',
         ]
-    langs = ['en', 'fr', 'de', 'es']
-    make_per_language_multilingual_data(['en'])
-    datasets = [f'experiments/NLI/{lang}/nli_train.tsv' for lang in langs]
-    datasets.append('experiments/NLI/cross/nli_train.tsv')
-    combine_datasets(datasets, 'experiments/NLI/multi_4lang/nli_train.tsv')
-    # foreign_dataset = 'experiments/NLI/foreign/nli_train.tsv'
-    # subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+    # make_per_language_multilingual_data(langs)
+    # datasets = [f'experiments/NLI/{lang}/nli_train.tsv' for lang in langs]
+    # combine_datasets(datasets, 'experiments/NLI/foreign/nli_train.tsv')
+    foreign_dataset = 'experiments/NLI/foreign/nli_train.tsv'
+    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
 

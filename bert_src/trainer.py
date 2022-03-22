@@ -142,6 +142,7 @@ if is_in_notebook():
 
 if is_apex_available():
     pass
+    # from apex import amp
 
 if version.parse(torch.__version__) >= version.parse("1.6"):
     _is_torch_generator_available = True
@@ -1172,7 +1173,7 @@ class Trainer:
             os.path.join(resume_from_checkpoint, "trainer_state.json")
         ):
             self.state = TrainerState.load_from_json(os.path.join(resume_from_checkpoint, "trainer_state.json"))
-            epochs_trained = self.state.global_step // num_update_steps_per_epoch
+            epochs_trained = int(self.state.epoch)
             if not args.ignore_data_skip:
                 steps_trained_in_current_epoch = self.state.global_step % (num_update_steps_per_epoch)
                 steps_trained_in_current_epoch *= args.gradient_accumulation_steps
@@ -1221,8 +1222,8 @@ class Trainer:
                 # We just need to begin an iteration to create the randomization of the sampler.
                 for _ in train_dataloader:
                     break
-
-        for epoch in range(epochs_trained, num_train_epochs):
+        
+        for epoch in range(int(epochs_trained), int(num_train_epochs)):
             if isinstance(train_dataloader, DataLoader) and isinstance(train_dataloader.sampler, DistributedSampler):
                 train_dataloader.sampler.set_epoch(epoch)
             elif isinstance(train_dataloader.dataset, IterableDatasetShard):

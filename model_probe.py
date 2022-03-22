@@ -41,7 +41,7 @@ for downstream_task in tasks:
     process = subprocess.Popen(cmd, shell=True)
     processes.append(process)
 
-    if len(processes) == 4:
+    if len(processes) == 3:
         results = [p.wait() for p in processes]
         processes = []
 
