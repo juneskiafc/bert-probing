@@ -141,11 +141,7 @@ def subsample_and_combine(foreign_dataset, ps):
         reader =csv.DictReader(f, delimiter='\t', fieldnames=fieldnames)
         mnli_rows = [row for row in reader]
 
-<<<<<<< HEAD
-    seeds = list(range(600, 1000, 100))
-=======
     seeds = list(range(1000, 1500, 100))
->>>>>>> a2470f52f8fa059ee9916d474541db9a4dcffa84
     with open(foreign_dataset, 'r') as fr:
         reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
         rows = [r for r in reader]
