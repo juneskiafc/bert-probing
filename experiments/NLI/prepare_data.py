@@ -141,7 +141,7 @@ def subsample_and_combine(foreign_dataset, ps):
         reader =csv.DictReader(f, delimiter='\t', fieldnames=fieldnames)
         mnli_rows = [row for row in reader]
 
-    seeds = list(range(100, 500, 100))
+    seeds = list(range(600, 1000, 100))
     with open(foreign_dataset, 'r') as fr:
         reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
         rows = [r for r in reader]
@@ -181,9 +181,9 @@ if __name__ == '__main__':
             'vi',
             'zh',
         ]
-    # make_per_language_multilingual_data(langs)
-    # datasets = [f'experiments/NLI/{lang}/nli_train.tsv' for lang in langs]
-    # combine_datasets(datasets, 'experiments/NLI/foreign/nli_train.tsv')
+    make_per_language_multilingual_data(langs)
+    datasets = [f'experiments/NLI/{lang}/nli_train.tsv' for lang in langs]
+    combine_datasets(datasets, 'experiments/NLI/foreign/nli_train.tsv')
     foreign_dataset = 'experiments/NLI/foreign/nli_train.tsv'
     subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
 
