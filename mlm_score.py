@@ -329,26 +329,27 @@ if __name__ == '__main__':
     base_model_name = "bert-base-multilingual-cased"
 
     if task is Experiment['NLI']:
-        datasets = [
-            'ar',
-            'bg',
-            'de',
-            'el',
-            'es',
-            'fr',
-            'hi',
-            'ru',
-            'sw',
-            'th',
-            'tr',
-            'ur',
-            'vi',
-            'zh',
-            'en'
-        ]
+        # datasets = [
+        #     'ar',
+        #     'bg',
+        #     'de',
+        #     'el',
+        #     'es',
+        #     'fr',
+        #     'hi',
+        #     'ru',
+        #     'sw',
+        #     'th',
+        #     'tr',
+        #     'ur',
+        #     'vi',
+        #     'zh',
+        #     'en'
+        # ]
+        datasets = ['foreign']
         main(
             task,
-            'NLI_all-lang_test_2',
+            'NLI',
             args.model_ckpt,
             args.huggingface_ckpt,
             datasets,
@@ -375,7 +376,7 @@ if __name__ == '__main__':
             model_name = Path(args.model_ckpt).parent.name
         else:
             model_name = 'mBERT'
-        langs = ['foreign']
+        langs = ['foreign_0', 'foreign_1', 'foreign_2', 'foreign_3']
         # langs = ['en', 'es', 'fr', 'de']
         # langs = [
         #     'en',

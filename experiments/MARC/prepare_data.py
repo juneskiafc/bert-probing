@@ -39,6 +39,30 @@ def _prepare_data(train_langs, test_langs, out_dir):
                     label = row['stars']
                     f.write(f'{i}\t{label}\t{premise}\n')
 
+def cleave():
+    df = Dataset.from_json('experiments/MARC/foreign/marc_test_tmp.json')
+    final_out_files = [f'experiments/MARC/foreign_{i}/marc_test.tsv' for i in range(4)]
+    fios = []
+    for fof in final_out_files:
+        Path(fof).parent.mkdir(parents=True, exist_ok=True)
+        fios.append(open(fof, 'w'))
+
+    for i, row in enumerate(df):
+        premise = row['review_body']
+        label = row['stars']
+        if i < int(len(df) / 4):
+            f = fios[0]
+        elif i > int(len(df) / 4) and i <= int(len(df) / 4) * 2:
+            f = fios[1]
+        elif i > int(len(df) / 4) * 2 and i <= int(len(df) / 4) * 3:
+            f = fios[2]
+        else:
+            f = fios[3]
+        f.write(f'{i}\t{label}\t{premise}\n')
+    
+    for f in fios:
+        f.close()
+
 def prepare_finetune_data():
     train_langs_per_setting = {
         LingualSetting.CROSS: ['en'],
@@ -53,6 +77,7 @@ def prepare_finetune_data():
         _prepare_data(train_langs, test_langs, out_dir)
 
 if __name__ == '__main__':
-    langs = ['es', 'fr', 'de']
-    out_dir = Path(f'experiments/MARC/foreign')
-    _prepare_data(None, langs, out_dir)
+    # langs = ['es', 'fr', 'de']
+    # out_dir = Path(f'experiments/MARC/foreign')
+    # _prepare_data(None, langs, out_dir)
+    cleave()
