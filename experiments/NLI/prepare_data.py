@@ -141,7 +141,7 @@ def subsample_and_combine(foreign_dataset, ps):
         reader =csv.DictReader(f, delimiter='\t', fieldnames=fieldnames)
         mnli_rows = [row for row in reader]
 
-    seeds = list(range(100, 500, 100))
+    seeds = list(range(1000, 1500, 100))
     with open(foreign_dataset, 'r') as fr:
         reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
         rows = [r for r in reader]
@@ -153,7 +153,7 @@ def subsample_and_combine(foreign_dataset, ps):
                 replace=False)
             subsampled_rows = [rows[i] for i in subsampled_idxs]
 
-            out_file = Path(f'experiments/NLI/foreign_{p}/nli_train.tsv')
+            out_file = Path(f'experiments/NLI/foreign_{p}_2/nli_train.tsv')
             out_file.parent.mkdir(parents=True, exist_ok=True)
 
             with open(out_file, 'w') as fw:
