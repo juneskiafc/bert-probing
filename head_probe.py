@@ -63,7 +63,7 @@ def probe_heads(setting: LingualSetting,
         checkpoint_dir_for_head = checkpoint_dir.joinpath(setting.name.lower(), str(hl), str(hi))
         checkpoint_dir_for_head.mkdir(parents=True, exist_ok=True)
 
-        template = f'python train.py --local_rank -1 '
+        template = f'python train.py '
         template += f'--dataset_name {task.name}/cross ' # always train head probes using cross-ling setting
         
         if setting is not LingualSetting.BASE:
@@ -177,6 +177,10 @@ if __name__ == '__main__':
     else:
         finetuned_settings = [LingualSetting[args.finetuned_setting.upper()]]
     
+    # finetuned_tasks = [Experiment[e] for e in ['NLI']]
+    # settings = ['cross', 'multi']
+    # downstream_tasks = [Experiment['NLI']]
+
     for downstream_task in downstream_tasks:
         for setting in finetuned_settings:            
             probe_heads(
