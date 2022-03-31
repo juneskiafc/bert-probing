@@ -323,7 +323,7 @@ def evaluate_head_probe_multi_gpu_wrapper(
     print('Evaluating the accuracy of each head...')
 
     for downstream_task in downstream_tasks:
-        for setting in list(LingualSetting):
+        for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
             out_results_file = root_out_path.joinpath(
                 finetuned_task.name,
                 downstream_task.name,
@@ -627,13 +627,13 @@ if __name__ == '__main__':
     evaluate_head_probe_multi_gpu_wrapper(finetuned_task, downstream_tasks, devices=args.devices)
 
     languages = [
-        # 'en',
+        'en',
         'fr',
         'es',
         'de'
     ]
     for downstream_task in downstream_tasks:
-        for setting in list(LingualSetting):
+        for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
             get_results_csvs(
                 finetuned_task,
                 downstream_task,

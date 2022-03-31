@@ -1,5 +1,4 @@
 """ Fine-tuning the library models for named entity recognition on CoNLL-2003. """
-from asyncio import all_tasks
 import torch
 import einops
 from mt_dnn.batcher import Collater

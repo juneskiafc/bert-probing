@@ -18,6 +18,9 @@ task_to_n_classes = {
     'MARC': 5,
     'NER': 7
 }
+seeds = 1
+devices = [6, 7]
+
 processes = []
 if args.task == '':
     tasks = list(Experiment)
