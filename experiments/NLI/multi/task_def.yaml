@@ -9,7 +9,7 @@ nli:
     - neutral
     - entailment
   metric_meta:
-    - F1
+    - F1MAC
   loss: CeCriterion
   n_class: 3
   task_type: Classification

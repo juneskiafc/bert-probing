@@ -1,17 +1,15 @@
-ner:
+marc:
   data_format: PremiseOnly
   enable_san: False
   labels:
-    - 'O'
-    - 'B-PER'
-    - 'I-PER'
-    - 'B-ORG'
-    - 'I-ORG'
-    - 'B-LOC'
-    - 'I-LOC'
+  - '1'
+  - '2'
+  - '3'
+  - '4'
+  - '5'
   metric_meta:
   - F1MAC
-  n_class: 7
+  n_class: 5
   loss: CeCriterion
   split_names:
   - train
