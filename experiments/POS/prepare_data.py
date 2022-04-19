@@ -3,6 +3,8 @@ sys.path.append('/home/june/mt-dnn')
 from experiments.exp_def import LingualSetting
 from pathlib import Path
 import pandas as pd
+import csv
+import numpy as np
 from conllu import parse_incr
 
 DATA_ROOT = Path('/home/june/mt-dnn/experiments/POS/data')
@@ -88,21 +90,54 @@ def prepare_per_language_test_data():
         out_dir.mkdir(parents=True, exist_ok=True)
         _prepare_data(dataset_dirs, out_dir)
 
+def subsample_and_combine(foreign_dataset, ps):
+    fieldnames = ['id', 'label', 'premise']
+    with open(f'experiments/POS/cross/pos_train.tsv', 'r') as f:
+        reader = csv.DictReader(f, delimiter='\t', fieldnames=fieldnames)
+        mnli_rows = [row for row in reader]
+
+    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
+    for i, seed_collection in enumerate(seeds):
+        with open(foreign_dataset, 'r') as fr:
+            reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
+            rows = [r for r in reader]
+            for p_idx, p in enumerate(ps):
+                np.random.seed(seed_collection[p_idx])
+                subsampled_idxs = np.random.choice(
+                    np.arange(len(rows)),
+                    size=int(len(rows)*p),
+                    replace=False)
+                subsampled_rows = [rows[i] for i in subsampled_idxs]
+
+                out_file = Path(f'experiments/POS/foreign_{p}_{i}/pos_train.tsv')
+                out_file.parent.mkdir(parents=True, exist_ok=True)
+
+                with open(out_file, 'w') as fw:
+                    writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
+                    for row in subsampled_rows:
+                        writer.writerow(row)
+                
+                    for r in mnli_rows:
+                        writer.writerow(r)
+
 if __name__ == '__main__':
-    out_dir = Path('experiments/POS/foreign')
-    out_dir.mkdir(parents=True)
-    dataset_dirs = {
-        'train': [
-            DATA_ROOT.joinpath('fr/UD_French-GSD'),
-            DATA_ROOT.joinpath('de/UD_German-GSD'),
-            DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
-        ],
-        'test': [
-            # DATA_ROOT.joinpath('en/UD_English-EWT'),
-            DATA_ROOT.joinpath('fr/UD_French-GSD'),
-            DATA_ROOT.joinpath('de/UD_German-GSD'),
-            DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
-        ]
-    }
-    _prepare_data(dataset_dirs, out_dir)
+    foreign_dataset = 'experiments/POS/foreign/pos_train.tsv'
+    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+    
+    # out_dir = Path('experiments/POS/foreign')
+    # out_dir.mkdir(parents=True)
+    # dataset_dirs = {
+    #     'train': [
+    #         DATA_ROOT.joinpath('fr/UD_French-GSD'),
+    #         DATA_ROOT.joinpath('de/UD_German-GSD'),
+    #         DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+    #     ],
+    #     'test': [
+    #         # DATA_ROOT.joinpath('en/UD_English-EWT'),
+    #         DATA_ROOT.joinpath('fr/UD_French-GSD'),
+    #         DATA_ROOT.joinpath('de/UD_German-GSD'),
+    #         DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+    #     ]
+    # }
+    # _prepare_data(dataset_dirs, out_dir)
             

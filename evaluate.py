@@ -214,7 +214,7 @@ if __name__ == '__main__':
             'combined'
         ]
     else:
-        datasets = ['en', 'fr', 'de', 'es', 'multi']
+        datasets = ['multi']
         
     if not results_out_file.is_file():
         root_ckpt_path = Path('checkpoint/')
@@ -245,12 +245,12 @@ if __name__ == '__main__':
     else:
         results = pd.read_csv(results_out_file, index_col=0)
 
-    create_heatmap(
-        data_df=results,
-        row_labels=[d.upper() for d in datasets],
-        column_labels=[task.name],
-        xaxlabel='',
-        yaxlabel='languages',
-        out_file=results_out_file.with_suffix('.pdf'),
-        figsize=(5, 14)
-    )
+    # create_heatmap(
+    #     data_df=results,
+    #     row_labels=[d.upper() for d in datasets],
+    #     column_labels=[task.name],
+    #     xaxlabel='',
+    #     yaxlabel='languages',
+    #     out_file=results_out_file.with_suffix('.pdf'),
+    #     figsize=(5, 14)
+    # )

@@ -174,7 +174,7 @@ def get_acc(model, test_data, metric_meta, device_id, head_probe):
     preds_df = pd.Series(predictions)
     golds_df = pd.Series(golds)
     id_df = pd.Series(ids)
-    return metrics['ACC'], preds_df, golds_df, id_df
+    return metrics['F1MAC'], preds_df, golds_df, id_df
 
 def evaluate_head_probe(
     hlhis: List,
@@ -245,7 +245,7 @@ def evaluate_head_probe(
             str(hi))
 
         state_dict_for_head = list(state_dict_for_head.rglob("*.pt"))[0]
-        state_dict_for_head = torch.load(state_dict_for_head)['state']
+        state_dict_for_head = torch.load(str(state_dict_for_head))['state']
 
         # then attach the probing layer
         model.attach_head_probe(hl, hi, task_def.n_class)
@@ -323,7 +323,8 @@ def evaluate_head_probe_multi_gpu_wrapper(
     print('Evaluating the accuracy of each head...')
 
     for downstream_task in downstream_tasks:
-        for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
+        # for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
+        for setting in [LingualSetting.CROSS]:
             out_results_file = root_out_path.joinpath(
                 finetuned_task.name,
                 downstream_task.name,
