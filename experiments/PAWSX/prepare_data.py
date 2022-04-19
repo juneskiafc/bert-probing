@@ -3,6 +3,9 @@ from pathlib import Path
 import sys
 sys.path.append('/home/june/mt-dnn/')
 from experiments.exp_def import LingualSetting
+import csv
+from collections import OrderedDict
+import numpy as np
 
 def _prepare_data(train_langs, test_langs, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -55,10 +58,52 @@ def prepare_finetune_data():
 
         _prepare_data(train_langs, test_langs, out_dir)
 
+def subsample_and_combine(foreign_dataset, ps):
+    def read_rows(filename):
+        with open(filename, 'r') as f:
+            rows = []
+            for row in f:
+                id_, label, premise, hypothesis = row.split("\t")
+                hypothesis = hypothesis.strip('\n')
+                rows.append(OrderedDict({'id': id_, 'label': label, 'premise': premise, 'hypothesis': hypothesis}))
+        return rows
+
+    fieldnames = ['id', 'label', 'premise', 'hypothesis']
+    mnli_rows = read_rows('experiments/PAWSX/cross/pawsx_train.tsv')
+
+    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
+    rows = read_rows(foreign_dataset)
+    for i, seed_collection in enumerate(seeds):
+        for p_idx, p in enumerate(ps):
+            np.random.seed(seed_collection[p_idx])
+            subsampled_idxs = np.random.choice(
+                np.arange(len(rows)),
+                size=int(len(rows)*p),
+                replace=False)
+            subsampled_rows = [rows[i] for i in subsampled_idxs]
+
+            out_file = Path(f'experiments/PAWSX/foreign_{p}_{i}/pawsx_train.tsv')
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(out_file, 'w') as fw:
+                writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
+                for row in subsampled_rows:
+                    writer.writerow(row)
+            
+                for r in mnli_rows:
+                    writer.writerow(r)
+
 if __name__ == '__main__':
-    out_dir = Path(f'experiments/PAWSX/foreign')
-    langs = ['fr', 'de', 'es']
-    _prepare_data(langs, langs, out_dir)
+    # out_dir = Path(f'experiments/PAWSX/cross')
+    # langs = ['en']
+    # _prepare_data(langs, langs, out_dir)
+    
+    # out_dir = Path(f'experiments/PAWSX/fr')
+    # langs = ['fr']
+    # _prepare_data(langs, langs, out_dir)
+    
+    foreign_dataset = 'experiments/PAWSX/foreign/pawsx_train.tsv'
+    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
 
 
 

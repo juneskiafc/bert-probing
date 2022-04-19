@@ -1,0 +1,18 @@
+ner:
+  data_format: PremiseOnly
+  enable_san: False
+  labels:
+  - O
+  - B-ORG
+  - I-ORG
+  - B-PER
+  - I-PER
+  - B-LOC
+  - I-LOC
+  metric_meta:
+  - ACC
+  n_class: 7
+  loss: CeCriterion
+  split_names:
+  - train
+  task_type: Classification
