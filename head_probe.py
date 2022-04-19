@@ -155,7 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--downstream_setting', type=str, default='multi')
     parser.add_argument('--finetuned_task', type=str, default='NLI')
     parser.add_argument('--finetuned_setting', type=str, default='')
-    parser.add_argument('--epochs', type=int, default=1)
+    parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--devices', nargs='+')
     parser.add_argument('--models_per_gpu', type=int, default=1)
     parser.add_argument('--wandb', action='store_true')

@@ -6,10 +6,10 @@ import csv
 
 label_map = {
     'O': 0,
-    'B-ORG': 1,
-    'I-ORG': 2,
-    'B-PER': 3,
-    'I-PER': 4,
+    'B-PER': 1,
+    'I-PER': 2,
+    'B-ORG': 3,
+    'I-ORG': 4,
     'B-LOC': 5,
     'I-LOC': 6
 }

@@ -174,7 +174,7 @@ def get_acc(model, test_data, metric_meta, device_id, head_probe):
     preds_df = pd.Series(predictions)
     golds_df = pd.Series(golds)
     id_df = pd.Series(ids)
-    return metrics['ACC'], preds_df, golds_df, id_df
+    return metrics['F1MAC'], preds_df, golds_df, id_df
 
 def evaluate_head_probe(
     hlhis: List,
@@ -325,10 +325,15 @@ def evaluate_head_probe_multi_gpu_wrapper(
     print('Evaluating the accuracy of each head...')
 
     for downstream_task in downstream_tasks:
+<<<<<<< HEAD
         for setting in [
             LingualSetting.CROSS,
             LingualSetting.MULTI
             ]:
+=======
+        # for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
+        for setting in [LingualSetting.CROSS]:
+>>>>>>> 7bd7b496ac9837cd67157f9fb5fa6aead1cd235c
             out_results_file = root_out_path.joinpath(
                 finetuned_task.name,
                 downstream_task.name,
@@ -638,10 +643,14 @@ if __name__ == '__main__':
         'de'
     ]
     for downstream_task in downstream_tasks:
+<<<<<<< HEAD
         for setting in [
             LingualSetting.CROSS,
             LingualSetting.MULTI
             ]:
+=======
+        for setting in [LingualSetting.BASE, LingualSetting.CROSS, LingualSetting.MULTI]:
+>>>>>>> 7bd7b496ac9837cd67157f9fb5fa6aead1cd235c
             get_results_csvs(
                 finetuned_task,
                 downstream_task,
