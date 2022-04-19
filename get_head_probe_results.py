@@ -293,7 +293,9 @@ def distribute_heads_to_gpus(
                 f'{hl}_{hi}.csv')
             if not result_csv_for_head.is_file():
                 heads_to_distribute.append((hl, hi))
-            
+            else:
+                print(f'{(hl, hi)} exists.')
+    
     hlhis = []
     devices = []
     n_per_gpu = len(heads_to_distribute) // len(available_devices)
@@ -634,7 +636,7 @@ if __name__ == '__main__':
         'de'
     ]
     for downstream_task in downstream_tasks:
-        for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
+        for setting in [LingualSetting.BASE, LingualSetting.CROSS, LingualSetting.MULTI]:
             get_results_csvs(
                 finetuned_task,
                 downstream_task,

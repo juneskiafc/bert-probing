@@ -196,22 +196,23 @@ if __name__ == '__main__':
 
     if task is Experiment.NLI:
         datasets = [
-            'ar',
-            'bg',
-            'de',
-            'el',
-            'es',
-            'fr',
-            'hi',
-            'ru',
-            'sw',
-            'th',
-            'tr',
-            'ur',
-            'vi',
-            'zh',
-            'en',
-            'combined'
+            # 'ar',
+            # 'bg',
+            # 'de',
+            # 'el',
+            # 'es',
+            # 'fr',
+            # 'hi',
+            # 'ru',
+            # 'sw',
+            # 'th',
+            # 'tr',
+            # 'ur',
+            # 'vi',
+            # 'zh',
+            # 'en',
+            # 'combined'
+            'multi'
         ]
     else:
         datasets = ['multi']
