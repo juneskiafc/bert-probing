@@ -656,6 +656,7 @@ class BertPooler(nn.Module):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.model_probe = False
+        self.model_probe_sequence = False
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.activation = nn.Tanh()
 
@@ -667,13 +668,17 @@ class BertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
 
         if self.model_probe:
-            model_probe_logits = self.model_probe_head(first_token_tensor)
+            if self.model_probe_sequence:
+                model_probe_logits = self.model_probe_head(hidden_states)
+            else:
+                model_probe_logits = self.model_probe_head(first_token_tensor)
             return pooled_output, model_probe_logits
         else:
             return pooled_output
     
-    def attach_model_probe(self, n_classes, device):
+    def attach_model_probe(self, n_classes, device, sequence=False):
         self.model_probe = True
+        self.model_probe_sequence = sequence
         self.model_probe_head = nn.Linear(self.hidden_size, n_classes)
         self.model_probe_head.to(device)
 
