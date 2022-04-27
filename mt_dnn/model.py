@@ -2,7 +2,9 @@
 # Copyright (c) Microsoft. All rights reserved.
 from typing import List
 import torch
+from data_utils.task_def import TaskType
 import tasks
+import numpy as np
 import logging
 import torch.nn as nn
 import torch.optim as optim
@@ -278,6 +280,7 @@ class MTDNNModel(object):
         task_type = task_def.task_type
         task_obj = tasks.get_task_obj(task_def)
         inputs = batch_data[:batch_meta['input_len']]
+
         if len(inputs) == 3:
             inputs.append(None)
             inputs.append(None)
@@ -291,8 +294,23 @@ class MTDNNModel(object):
 
         if task_obj is not None:
             score, predict = task_obj.test_predict(score)
+        elif task_type == TaskType.SequenceLabeling:
+            mask = batch_data[batch_meta["mask"]]
+            score = score.contiguous()
+            score = score.data.cpu()
+            score = score.numpy()
+            predict = np.argmax(score, axis=1).reshape(mask.size()).tolist()
+            valid_length = mask.sum(1).tolist()
+            final_predict = []
+
+            for idx, p in enumerate(predict):
+                final_predict.append(p[: valid_length[idx]])
+
+            score = score.reshape(-1).tolist()
+            return score, final_predict, batch_meta["label"]
         else:
             raise ValueError("Unknown task_type: %s" % task_type)
+        
         return score, predict, batch_meta['label']
 
     def save(self, filename):

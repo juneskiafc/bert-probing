@@ -170,7 +170,6 @@ if __name__ == '__main__':
         downstream_tasks = [Experiment[args.downstream_task.upper()]]
     else:
         downstream_tasks = list(Experiment)
-        downstream_tasks.remove(Experiment.NLI)
     
     if args.finetuned_setting == '':
         finetuned_settings = list(LingualSetting)

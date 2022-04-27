@@ -68,7 +68,7 @@ class SANBertNetwork(nn.Module):
             if task_obj is not None: 
                 self.pooler = Pooler(hidden_size, dropout_p= opt['dropout_p'], actf=opt['pooler_actf'])
                 out_proj = task_obj.train_build_task_layer(decoder_opt, hidden_size, lab, opt, prefix='answer', dropout=dropout)
-            elif task_type == TaskType.SeqenceLabeling:
+            elif task_type == TaskType.SequenceLabeling:
                 out_proj = nn.Linear(hidden_size, lab)
             elif task_type == TaskType.MaskLM:
                 self.mask_lm_header = MaskLmHeader(self.bert.embeddings.word_embeddings.weight)
@@ -84,6 +84,12 @@ class SANBertNetwork(nn.Module):
                 self.scoring_list.append(out_proj)
             else:
                 delattr(self, 'scoring_list')
+            
+            if opt['model_probe']:
+                self.model_probe_list = []
+                for i in range(12):
+                    model_probe = nn.Linear(hidden_size, lab)
+                    self.model_probe_list.append(model_probe)
             
         self.config = opt
 
@@ -145,7 +151,16 @@ class SANBertNetwork(nn.Module):
             last_hidden_state = outputs.last_hidden_state
             all_hidden_states = outputs.hidden_states 
             head_probe_output = outputs.head_probe_output
-            model_probe_output = outputs.model_probe_output
+            # model_probe_output = outputs.model_probe_output
+
+            if self.config['model_probe']:
+                model_probe_output = []
+                for i in range(12):
+                    model_probe_output_for_token = self.model_probe_list[i](last_hidden_state[:, i, :])
+                    model_probe_output.append(model_probe_output_for_token)
+                model_probe_output = torch.stack(model_probe_output, dim=1)
+            else:
+                model_probe_output = None
 
         return last_hidden_state, all_hidden_states, head_probe_output, model_probe_output
 
@@ -191,16 +206,15 @@ class SANBertNetwork(nn.Module):
             start_scores = start_scores.squeeze(-1)
             end_scores = end_scores.squeeze(-1)
             return start_scores, end_scores
-        elif task_type == TaskType.SeqenceLabeling:
+        elif task_type == TaskType.SequenceLabeling:
             pooled_output = last_hidden_state
             pooled_output = self.dropout_list[task_id](pooled_output)
             pooled_output = pooled_output.contiguous().view(-1, pooled_output.size(2))
             logits = self.scoring_list[task_id](pooled_output)
-            return logits
+            return logits, None, model_probe_output
         elif task_type == TaskType.MaskLM:
             last_hidden_state = self.dropout_list[task_id](last_hidden_state)
             logits = self.mask_lm_header(last_hidden_state)
-            # logits = self.scoring_list[task_id](last_hidden_state)
             return logits, head_probe_output
         elif task_type == TaskType.SeqenceGeneration:
             logits = last_hidden_state.view(-1, last_hidden_state.size(-1))

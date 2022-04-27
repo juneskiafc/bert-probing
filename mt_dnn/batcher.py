@@ -424,13 +424,14 @@ class Collater:
                 batch_data.append((torch.LongTensor(start), torch.LongTensor(end), torch.LongTensor(labels)))
                 # unify to one type of label
                 batch_info['label'] = len(batch_data) - 1
-            elif task_type == TaskType.SeqenceLabeling:
+            elif task_type == TaskType.SequenceLabeling:
                 batch_size = self._get_batch_size(batch)
                 tok_len = self._get_max_len(batch, key='token_id')
                 tlab = torch.LongTensor(batch_size, tok_len).fill_(-1)
                 for i, label in enumerate(labels):
                     ll = len(label)
                     tlab[i, : ll] = torch.LongTensor(label)
+                tlab = torch.reshape(tlab, (-1,))
                 batch_data.append(tlab)
                 batch_info['label'] = len(batch_data) - 1
             elif task_type == TaskType.MaskLM:
@@ -474,7 +475,6 @@ class Collater:
                     batch_info['label'] = [sample['label'] if "label" in sample else None for sample in batch]
                 if task_type == TaskType.SeqenceGeneration:
                     batch_info['answer'] = [sample['answer'] for sample in batch]
-
 
         batch_info['uids'] = [sample['uid'] for sample in batch]  # used in scoring
         return batch_info, batch_data

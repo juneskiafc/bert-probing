@@ -13,13 +13,13 @@ args = parser.parse_args()
 model_ckpt = Path(args.model_ckpt)
 task_to_n_classes = {
     'NLI': 3,
-    'POS': 17,
+    'POS': 19,
     'PAWSX': 2,
     'MARC': 5,
-    'NER': 7
+    'NER': 10
 }
 seeds = 1
-devices = [6, 7]
+devices = [0, 1]
 
 processes = []
 if args.task == '':

@@ -1,18 +1,22 @@
 ner:
-  data_format: PremiseOnly
+  data_format: Sequence
   enable_san: False
   labels:
-    - 'O'
-    - 'B-PER'
-    - 'I-PER'
-    - 'B-ORG'
-    - 'I-ORG'
-    - 'B-LOC'
-    - 'I-LOC'
+  - O
+  - B-PER
+  - I-PER
+  - B-ORG
+  - I-ORG
+  - B-LOC
+  - I-LOC
+  - X
+  - CLS
+  - SEP
   metric_meta:
   - F1MAC
-  n_class: 7
+  n_class: 10
   loss: CeCriterion
   split_names:
   - train
-  task_type: Classification
+  - test
+  task_type: SequenceLabeling

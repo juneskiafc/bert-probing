@@ -99,6 +99,7 @@ def eval_model(model,
         predictions, golds = postprocess_qa_predictions(golds, scores, version_2_with_negative=False)
     elif task_type == TaskType.SpanYN:
         predictions, golds = postprocess_qa_predictions(golds, scores, version_2_with_negative=True)
+    
     if with_label:
         metrics = calc_metrics(metric_meta, golds, predictions, scores, label_mapper)
     
