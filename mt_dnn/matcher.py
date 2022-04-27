@@ -85,12 +85,6 @@ class SANBertNetwork(nn.Module):
             else:
                 delattr(self, 'scoring_list')
             
-            if opt['model_probe']:
-                self.model_probe_list = []
-                for i in range(12):
-                    model_probe = nn.Linear(hidden_size, lab)
-                    self.model_probe_list.append(model_probe)
-            
         self.config = opt
 
     def get_attention_layer(self, layer):
@@ -119,9 +113,9 @@ class SANBertNetwork(nn.Module):
         _, pooler = list(self.bert.named_children())[2]
         return pooler
     
-    def attach_model_probe(self, n_classes, device):
+    def attach_model_probe(self, n_classes, device, sequence=False):
         pooler = self.get_pooler_layer()
-        pooler.attach_model_probe(n_classes, device)
+        pooler.attach_model_probe(n_classes, device, sequence)
 
     def embed_encode(self, input_ids, token_type_ids=None, attention_mask=None):
         if token_type_ids is None:
@@ -151,16 +145,7 @@ class SANBertNetwork(nn.Module):
             last_hidden_state = outputs.last_hidden_state
             all_hidden_states = outputs.hidden_states 
             head_probe_output = outputs.head_probe_output
-            # model_probe_output = outputs.model_probe_output
-
-            if self.config['model_probe']:
-                model_probe_output = []
-                for i in range(12):
-                    model_probe_output_for_token = self.model_probe_list[i](last_hidden_state[:, i, :])
-                    model_probe_output.append(model_probe_output_for_token)
-                model_probe_output = torch.stack(model_probe_output, dim=1)
-            else:
-                model_probe_output = None
+            model_probe_output = outputs.model_probe_output
 
         return last_hidden_state, all_hidden_states, head_probe_output, model_probe_output
 

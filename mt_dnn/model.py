@@ -16,7 +16,7 @@ from mt_dnn.loss import LOSS_REGISTRY
 from mt_dnn.matcher import SANBertNetwork
 from mt_dnn.loss import *
 from experiments.exp_def import TaskDef
-from data_utils.my_statics import DUMPY_STRING_FOR_EMPTY_ANS
+import einops
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +70,8 @@ class MTDNNModel(object):
     def detach_head_probe(self, hl):
         self.network.detach_head_probe(hl)
     
-    def attach_model_probe(self, n_classes):
-        self.network.attach_model_probe(n_classes, self.device)
+    def attach_model_probe(self, n_classes, sequence):
+        self.network.attach_model_probe(n_classes, self.device, sequence=sequence)
 
     def _get_param_groups(self):
         no_decay = ['bias', 'gamma', 'beta', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -238,6 +238,9 @@ class MTDNNModel(object):
                 if head_probe_logits is not None:
                     loss = loss_criterion(head_probe_logits, y, weight, ignore_index=-1)
                 elif model_probe_logits is not None:
+                    if len(model_probe_logits.shape) > 2:
+                        # sequence model probing, combine seq w/ batch
+                        model_probe_logits = einops.rearrange(model_probe_logits, 'b s c -> (b s) c')
                     loss = loss_criterion(model_probe_logits, y, weight, ignore_index=-1)
                 else:
                     raise ValueError
