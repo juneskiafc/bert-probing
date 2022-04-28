@@ -111,31 +111,36 @@ def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
 
     def build_data_sequence(data, dump_path, max_seq_len=MAX_SEQ_LEN, tokenizer=None, label_mapper=None):
         with open(dump_path, 'w', encoding='utf-8') as writer:
-            for idx, sample in enumerate(data):
-                ids = sample['uid']
-                premise = sample['premise']
+            for sample in data:
+                ids = sample["uid"]
+                premise = sample["premise"]
                 tokens = []
                 labels = []
+
+                assert len(premise) == len(sample['label']), (premise, sample['label'])
+
                 for i, word in enumerate(premise):
                     subwords = tokenizer.tokenize(word)
                     tokens.extend(subwords)
                     for j in range(len(subwords)):
                         if j == 0:
-                            label = label_mapper[sample['label']]
-                            raise ValueError(label)
-                            labels.append(label)
+                            labels.append(sample["label"][i])
                         else:
-                            labels.append(label_mapper['X'])
-                if len(premise) >  max_seq_len - 2:
-                    tokens = tokens[:max_seq_len - 2]
-                    labels = labels[:max_seq_len - 2]
+                            labels.append(label_mapper["X"])
 
-                label = [label_mapper['CLS']] + labels + [label_mapper['SEP']]
-                input_ids = tokenizer.convert_tokens_to_ids([tokenizer.cls_token] + tokens + [tokenizer.sep_token])
+                if len(premise) > max_seq_len - 2:
+                    tokens = tokens[: max_seq_len - 2]
+                    labels = labels[: max_seq_len - 2]
+
+                label = [label_mapper["CLS"]] + labels + [label_mapper["SEP"]]
+                input_ids = tokenizer.convert_tokens_to_ids(
+                    [tokenizer.cls_token] + tokens + [tokenizer.sep_token]
+                )
                 assert len(label) == len(input_ids)
+
                 type_ids = [0] * len(input_ids)
-                features = {'uid': ids, 'label': label, 'token_id': input_ids, 'type_id': type_ids}
-                writer.write('{}\n'.format(json.dumps(features)))
+                feature = {"uid": ids, "label": label, "token_id": input_ids, "type_id": type_ids}
+                writer.write('{}\n'.format(json.dumps(feature)))
 
     if data_format == DataFormat.PremiseOnly:
         build_data_premise_only(
@@ -149,7 +154,7 @@ def build_data(data, dump_path, tokenizer, data_format=DataFormat.PremiseOnly,
     elif data_format == DataFormat.PremiseAndMultiHypothesis:
         build_data_premise_and_multi_hypo(
             data, dump_path, max_seq_len, tokenizer)
-    elif data_format == DataFormat.Seqence:
+    elif data_format == DataFormat.Sequence:
         build_data_sequence(data, dump_path, max_seq_len, tokenizer, lab_dict)
     else:
         raise ValueError(data_format)
@@ -196,25 +201,3 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     prepare_data(args)
-    # langs = [
-    #         'ar',
-    #         'bg',
-    #         'de',
-    #         'el',
-    #         'es',
-    #         'fr',
-    #         'hi',
-    #         'ru',
-    #         'sw',
-    #         'th',
-    #         'tr',
-    #         'ur',
-    #         'vi',
-    #         'zh',
-    #     ]
-    # datasets = [f'NLI/foreign_{p}' for p in [0.2, 0.4, 0.6, 0.8]]
-    # # datasets = [f'NLI/{lang}' for lang in langs]
-    # for dataset in datasets:
-    #     args.dataset = dataset
-    #     print(args.dataset)
-    #     prepare_data(args)

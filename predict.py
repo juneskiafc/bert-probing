@@ -33,7 +33,7 @@ BATCH_SIZE = 8
 if TASK == 'NLI':
     task_type = TaskType.Classification
 elif TASK == 'POS':
-    task_type = TaskType.SeqenceLabeling
+    task_type = TaskType.SequenceLabeling
 elif TASK == 'NER':
     task_type = TaskType.Classification
 else:

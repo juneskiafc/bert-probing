@@ -28,8 +28,8 @@ def load_data(file_path, task_def):
             assert len(fields) > 5
             row = {"uid": fields[0], "ruid": fields[1].split(","), "label": fields[2], "premise": fields[3],
                    "hypothesis": fields[4:]}
-        elif data_format == DataFormat.Seqence:
-            row = {"uid": fields[0], "label": fields[1],  "premise": fields[2]}
+        elif data_format == DataFormat.Sequence:
+            row = {"uid": fields[0], "label": fields[1].split(' '), "premise": fields[2].split(' ')}
 
         elif data_format == DataFormat.MRC:
             row = {
@@ -53,10 +53,9 @@ def load_data(file_path, task_def):
             row["olabel"] = labels
         elif task_type == TaskType.Span:
             pass  # don't process row label
-        elif task_type == TaskType.SeqenceLabeling:
+        elif task_type == TaskType.SequenceLabeling:
             assert type(row["label"]) is list
             row["label"] = [label_dict[label] for label in row["label"]]
-
         rows.append(row)
     return rows
 

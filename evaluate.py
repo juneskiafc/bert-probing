@@ -115,7 +115,7 @@ def construct_model(checkpoint: str, task: Experiment, task_def_path: str, devic
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
 
-def get_metric(model, test_data, metric_meta, device_id, head_probe):
+def get_metric(model, test_data, metric_meta, task_type, device_id, head_probe, label_mapper=None):
     with torch.no_grad():
         model.network.eval()
         model.network.to(device_id)
@@ -123,12 +123,14 @@ def get_metric(model, test_data, metric_meta, device_id, head_probe):
         results = eval_model(
             model,
             test_data,
-            task_type=TaskType.Classification,
+            task_type=task_type,
             metric_meta=metric_meta,
             device=device_id,
             with_label=True,
-            head_probe=head_probe
+            head_probe=head_probe,
+            label_mapper=label_mapper
         )
+    
     metrics = results[0]
     predictions = results[1]
     golds = results[3]
@@ -142,6 +144,8 @@ def get_metric(model, test_data, metric_meta, device_id, head_probe):
         metric = metrics['ACC']
     elif 'F1MAC' in metrics:
         metric = metrics['F1MAC']
+    elif 'SeqEvalList' in metrics:
+        metric = metrics['SeqEvalList']
     
     return metric, preds_df, golds_df, id_df
 
@@ -162,16 +166,26 @@ def evaluate_model_against_multiple_datasets(
             model_full_name = 'bert-base-multilingual-cased'
         else:
             model_full_name = 'xlm-roberta-base'
+        
         data_path = f'experiments/{task.name}/{dataset}/{model_full_name}/{task.name.lower()}_test.json'
+        task_def = TaskDefs(task_def_path).get_task_def(task.name.lower())
 
         test_data = build_dataset(
             data_path,
-            task_def=TaskDefs(task_def_path).get_task_def(task.name.lower()),
+            task_def=task_def,
             device_id=device_id,
             batch_size=8,
             max_seq_len=512)
 
-        metric = get_metric(model, test_data, metric_meta, device_id, head_probe=False)[0]
+        metric = get_metric(
+            model,
+            test_data,
+            metric_meta,
+            task_def.task_type,
+            device_id,
+            head_probe=False,
+            label_mapper=task_def.label_vocab.ind2tok)[0]
+        
         metrics.append(metric)
     
     return metrics
@@ -215,7 +229,7 @@ if __name__ == '__main__':
             'multi'
         ]
     else:
-        datasets = ['multi']
+        datasets = ['en', 'fr', 'de', 'es', 'multi']
         
     if not results_out_file.is_file():
         root_ckpt_path = Path('checkpoint/')
@@ -246,12 +260,12 @@ if __name__ == '__main__':
     else:
         results = pd.read_csv(results_out_file, index_col=0)
 
-    # create_heatmap(
-    #     data_df=results,
-    #     row_labels=[d.upper() for d in datasets],
-    #     column_labels=[task.name],
-    #     xaxlabel='',
-    #     yaxlabel='languages',
-    #     out_file=results_out_file.with_suffix('.pdf'),
-    #     figsize=(5, 14)
-    # )
+    create_heatmap(
+        data_df=results,
+        row_labels=[d.upper() for d in datasets],
+        column_labels=[task.name],
+        xaxlabel='',
+        yaxlabel='languages',
+        out_file=results_out_file.with_suffix('.pdf'),
+        figsize=(5, 14)
+    )

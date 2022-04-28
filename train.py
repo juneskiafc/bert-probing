@@ -43,6 +43,7 @@ def model_config(parser):
     # model probing
     parser.add_argument('--model_probe', action='store_true')
     parser.add_argument('--model_probe_n_classes', type=int)
+    parser.add_argument('--model_probe_sequence', action='store_true')
 
     # gradient probing
     parser.add_argument('--gradient_probe', action='store_true')
@@ -474,10 +475,16 @@ def main():
             state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
             state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
             state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
+
+            # if model finetuned under SequenceLabeling and model probing on a task that is Classification
+            if 'pooler.dense.weight' not in state_dict['state'] and 'pooler.dense.weight' in model.network.state_dict():
+                state_dict['state']['pooler.dense.weight'] = model.network.state_dict()['pooler.dense.weight']
+                state_dict['state']['pooler.dense.bias'] = model.network.state_dict()['pooler.dense.bias']
+            
             model.load_state_dict(state_dict)
         
         # then attach probing head
-        model.attach_model_probe(n_classes=args.model_probe_n_classes)
+        model.attach_model_probe(n_classes=args.model_probe_n_classes, sequence=args.model_probe_sequence)
         optimizer_parameters = model._get_param_groups()
         model._setup_optim(optimizer_parameters, None, num_all_batches)
 

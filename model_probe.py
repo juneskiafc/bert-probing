@@ -13,13 +13,13 @@ args = parser.parse_args()
 model_ckpt = Path(args.model_ckpt)
 task_to_n_classes = {
     'NLI': 3,
-    'POS': 17,
+    'POS': 19,
     'PAWSX': 2,
     'MARC': 5,
-    'NER': 7
+    'NER': 10
 }
 seeds = 1
-devices = [6, 7]
+devices = [1, 2]
 
 processes = []
 if args.task == '':
@@ -31,17 +31,20 @@ for downstream_task in tasks:
     exp_name = f'{model_ckpt.parent.name}:{downstream_task.name}'
     dataset = f'{downstream_task.name}/cross'
     cmd = 'python train.py'
-    cmd += f' --devices {len(processes)}'
+    cmd += f' --devices {devices[len(processes)]}'
     cmd += f' --model_probe --model_probe_n_classes {task_to_n_classes[downstream_task.name]}'
     cmd += f' --exp_name {exp_name}'
     cmd += f' --dataset_name {dataset}'
     cmd += ' --epochs 2'
     cmd += f' --model_ckpt {model_ckpt} --resume'
 
+    if downstream_task in [Experiment.NER, Experiment.POS]:
+        cmd += ' --model_probe_sequence'
+
     process = subprocess.Popen(cmd, shell=True)
     processes.append(process)
 
-    if len(processes) == 3:
+    if len(processes) == len(devices):
         results = [p.wait() for p in processes]
         processes = []
 
