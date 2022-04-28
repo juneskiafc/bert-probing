@@ -11,6 +11,7 @@ from torch.nn.modules.normalization import LayerNorm
 from data_utils.task_def import EncoderModelType, TaskType
 import tasks
 from experiments.exp_def import TaskDef
+import transformers
 
 def generate_decoder_opt(enable_san, max_opt):
     opt_v = 0
@@ -149,7 +150,7 @@ class SANBertNetwork(nn.Module):
 
         return last_hidden_state, all_hidden_states, head_probe_output, model_probe_output
 
-    def forward(self, input_ids, token_type_ids, attention_mask, premise_mask=None, hyp_mask=None, task_id=0, y_input_ids=None, fwd_type=0, embed=None):        
+    def forward(self, input_ids, token_type_ids, attention_mask, premise_mask=None, hyp_mask=None, task_id=0, y_input_ids=None, fwd_type=0, embed=None, model_probe=False, head_probe=False):        
         assert fwd_type == 0, fwd_type
         encode_outputs = self.encode(
                             input_ids,
@@ -158,11 +159,19 @@ class SANBertNetwork(nn.Module):
                             y_input_ids=y_input_ids,
                             output_hidden_states=True
                         )
+        
         last_hidden_state, all_hidden_states, head_probe_output, model_probe_output = encode_outputs
 
         decoder_opt = self.decoder_opt[task_id]
         task_type = self.task_types[task_id]
         task_obj = tasks.get_task_obj(self.task_def_list[task_id])
+
+        if model_probe:
+            if task_type == TaskType.SequenceLabeling:
+                model_probe_output = model_probe_output.contiguous().view(-1, model_probe_output.size(2))
+            return model_probe_output
+        elif head_probe:
+            return head_probe_output
     
         if task_obj is not None: # Classification
             pooled_output = self.pooler(last_hidden_state)
@@ -173,7 +182,7 @@ class SANBertNetwork(nn.Module):
                                             decoder_opt,
                                             self.dropout_list[task_id],
                                             self.scoring_list[task_id])
-            return logits, head_probe_output, model_probe_output
+            return logits
 
         elif task_type == TaskType.Span:
             assert decoder_opt != 1
@@ -196,7 +205,7 @@ class SANBertNetwork(nn.Module):
             pooled_output = self.dropout_list[task_id](pooled_output)
             pooled_output = pooled_output.contiguous().view(-1, pooled_output.size(2))
             logits = self.scoring_list[task_id](pooled_output)
-            return logits, None, model_probe_output
+            return logits
         elif task_type == TaskType.MaskLM:
             last_hidden_state = self.dropout_list[task_id](last_hidden_state)
             logits = self.mask_lm_header(last_hidden_state)

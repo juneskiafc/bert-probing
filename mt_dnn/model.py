@@ -56,6 +56,8 @@ class MTDNNModel(object):
         # stats and misc
         self.total_param = sum([p.nelement() for p in model.parameters() if p.requires_grad])
         self.train_loss = AverageMeter()
+
+        self.model_probe = opt.get('model_probe', False)
         self.head_probe = opt.get('head_probe', False)
 
     def load_state_dict(self, state_dict):
@@ -65,12 +67,15 @@ class MTDNNModel(object):
         return self.network.get_attention_layer(hl)
     
     def attach_head_probe(self, hl, hi, n_classes):
+        self.head_probe = True
         self.network.attach_head_probe(hl, hi, n_classes, self.device)
 
     def detach_head_probe(self, hl):
+        self.head_probe = False
         self.network.detach_head_probe(hl)
     
     def attach_model_probe(self, n_classes, sequence):
+        self.model_probe = True
         self.network.attach_model_probe(n_classes, self.device, sequence=sequence)
 
     def _get_param_groups(self):
@@ -225,25 +230,17 @@ class MTDNNModel(object):
                 weight = batch_data[batch_meta['factor']]
 
         # fw to get logits
-        logits, head_probe_logits, model_probe_logits = self.mnetwork(*inputs)
+        logits = self.mnetwork(*inputs, model_probe=self.model_probe, head_probe=self.head_probe)
 
         # compute loss
         loss = 0
         loss_criterion = self.task_loss_criterion[task_id]
         if loss_criterion and (y is not None):
             y.to(logits.device)
-            if head_probe_logits is None and model_probe_logits is None:
-                loss = loss_criterion(logits, y, weight, ignore_index=-1)
-            else:
-                if head_probe_logits is not None:
-                    loss = loss_criterion(head_probe_logits, y, weight, ignore_index=-1)
-                elif model_probe_logits is not None:
-                    if len(model_probe_logits.shape) > 2:
-                        # sequence model probing, combine seq w/ batch
-                        model_probe_logits = einops.rearrange(model_probe_logits, 'b s c -> (b s) c')
-                    loss = loss_criterion(model_probe_logits, y, weight, ignore_index=-1)
-                else:
-                    raise ValueError
+            if len(logits.shape) > 2:
+                # sequence model probing, combine seq w/ batch
+                logits = einops.rearrange(logits, 'b s c -> (b s) c')
+            loss = loss_criterion(logits, y, weight, ignore_index=-1)
 
         batch_size = batch_data[batch_meta['token_id']].size(0)
         self.train_loss.update(loss.item(), batch_size)
@@ -289,12 +286,15 @@ class MTDNNModel(object):
             inputs.append(None)
         inputs.append(task_id)
 
-        score, head_probe_logits, model_probe_logits = self.mnetwork(*inputs)
-        if head_probe:
-            score = head_probe_logits
-        elif model_probe:
-            score = model_probe_logits
-
+        if model_probe:
+            self.mnetwork.task_types[task_id] = task_def.task_type
+                
+        score = self.mnetwork(
+            *inputs,
+            model_probe=model_probe,
+            head_probe=head_probe
+        )
+    
         if task_obj is not None:
             score, predict = task_obj.test_predict(score)
         elif task_type == TaskType.SequenceLabeling:

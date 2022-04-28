@@ -25,7 +25,7 @@ pos:
     - CLS
     - SEP
   metric_meta:
-    - F1MAC
+    - SeqEvalList
   loss: CeCriterion
   n_class: 19
   task_type: SequenceLabeling

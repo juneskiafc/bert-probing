@@ -13,7 +13,6 @@ ner:
   - CLS
   - SEP
   metric_meta:
-  # - F1MAC
   - SeqEvalList
   n_class: 10
   loss: CeCriterion
