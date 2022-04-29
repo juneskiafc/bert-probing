@@ -1,5 +1,5 @@
 pos:
-  data_format: PremiseOnly
+  data_format: Sequence
   enable_san: false
   split_names:
     - train
@@ -22,8 +22,10 @@ pos:
     - SYM
     - VERB
     - X
+    - CLS
+    - SEP
   metric_meta:
     - F1MAC
   loss: CeCriterion
-  n_class: 17
-  task_type: Classification
+  n_class: 19
+  task_type: SequenceLabeling

@@ -1,3 +1,5 @@
+from collections import defaultdict
+from multiprocessing.sharedctypes import Value
 from pathlib import Path
 import shutil
 import altair as alt
@@ -84,22 +86,22 @@ def preprocess_ranked_heads_cross_probing(setting):
         data_for_k = {}
         for downstream_task in ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']:
             for upstream_task in ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']:
-                # if downstream_task != upstream_task:
-                for ls in ['cross', 'multi']:
-                    path_to_data = Path(f'head_probe_ranking/{setting}/{upstream_task}/{downstream_task}/{ls}/{upstream_task.lower()}_{ls}-{downstream_task.lower()}-{setting}_layer_ranks.np')
-                    
-                    accumulated = [0 for _ in range(12)]
-                    data = pd.read_csv(path_to_data, index_col=0)[:k]
+                if downstream_task != upstream_task:
+                    for ls in ['cross', 'multi']:
+                        path_to_data = Path(f'head_probe_ranking/{setting}/{upstream_task}/{downstream_task}/{ls}/{upstream_task.lower()}_{ls}-{downstream_task.lower()}-{setting}_layer_ranks.np')
+                        
+                        accumulated = [0 for _ in range(12)]
+                        data = pd.read_csv(path_to_data, index_col=0)[:k]
 
-                    # get no. top heads per layer, normalize, and cumulative sum
-                    for _, d in data.iterrows():
-                        accumulated[int(d)] += 1
-                    accumulated = [a / sum(accumulated) for a in accumulated]
+                        # get no. top heads per layer, normalize, and cumulative sum
+                        for _, d in data.iterrows():
+                            accumulated[int(d)] += 1
+                        accumulated = [a / sum(accumulated) for a in accumulated]
 
-                    if downstream_task not in data_for_k:
-                        data_for_k[downstream_task] = {f'{upstream_task}_{ls}': accumulated}
-                    else:
-                        data_for_k[downstream_task][f'{upstream_task}_{ls}'] = accumulated
+                        if downstream_task not in data_for_k:
+                            data_for_k[downstream_task] = {f'{upstream_task}_{ls}': accumulated}
+                        else:
+                            data_for_k[downstream_task][f'{upstream_task}_{ls}'] = accumulated
         all_data[k] = data_for_k
     
     return all_data
@@ -302,7 +304,7 @@ def plot_altair_cross_probing(data):
         
         chart = alt.Chart(df).mark_bar().encode(
             # tell Altair which field to group columns on
-            x=alt.X('model:N', title='', axis=alt.Axis(labelAngle=-45)),
+            x=alt.X('model:N', title='', axis=alt.Axis(labelAngle=-45), sort=columns),
 
             # tell Altair which field to use as Y values and how to calculate
             y=alt.Y(
@@ -328,6 +330,7 @@ def plot_altair_cross_probing(data):
     return charts
 
 if __name__ == '__main__':
+    # cross_probing_move_files()
     # rank_heads()
     # for setting in ['combined']:
     #     save_path = Path(f'head_probe_ranking/plots/plot_topk/{setting}_ranks.svg')
@@ -340,3 +343,12 @@ if __name__ == '__main__':
     # for setting in ['combined']:
     #     data = preprocess_ranked_heads_cross_probing(setting)
     #     plot_pyplot_cross_probing(data)
+    for setting in ['combined']:
+        data = preprocess_ranked_heads_cross_probing(setting)
+        axes = plot_altair_cross_probing(data)
+        ks = list(range(24, 144, 24))
+        for i, ax in enumerate(axes):
+            save_path = Path(f'head_probe_ranking/plots/cross_head_probing/{ks[i]}_{setting}_ranks.png')
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            altair_saver.save(ax, str(save_path))
+            raise ValueError

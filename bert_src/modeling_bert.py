@@ -237,10 +237,11 @@ class BertSelfAttention(nn.Module):
         self.is_decoder = config.is_decoder
         self.head_probe = False
     
-    def attach_head_probe(self, head_idx, n_classes=3, device_id=-1):
+    def attach_head_probe(self, head_idx, n_classes, sequence=False, device_id=-1):
         self.head_probe = True
         self.head_probe_head_idx = head_idx
         self.head_probe_dense_layer = nn.Linear(self.attention_head_size, n_classes).cuda(device=device_id)
+        self.head_probe_sequence = sequence
 
     def detach_head_probe(self):
         delattr(self, 'head_probe_dense_layer')
@@ -342,8 +343,12 @@ class BertSelfAttention(nn.Module):
         context_layer = context_layer.view(*new_context_layer_shape)
         
         if self.head_probe:
-            reshaped_context_layer = einops.rearrange(context_layer, 'b f (n h) -> b f n h', n=self.num_attention_heads)
-            head_probe_input = reshaped_context_layer[:, 0, self.head_probe_head_idx, :]
+            reshaped_context_layer = einops.rearrange(context_layer, 'b l (n h) -> b l n h', n=self.num_attention_heads)
+            
+            if self.head_probe_sequence:
+                head_probe_input = reshaped_context_layer[:, :, self.head_probe_head_idx, :]
+            else:
+                head_probe_input = reshaped_context_layer[:, 0, self.head_probe_head_idx, :]
             head_probe_output = self.head_probe_dense_layer(head_probe_input)
 
         outputs = [context_layer]
@@ -656,6 +661,7 @@ class BertPooler(nn.Module):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.model_probe = False
+        self.model_probe_sequence = False
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.activation = nn.Tanh()
 
@@ -667,13 +673,17 @@ class BertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
 
         if self.model_probe:
-            model_probe_logits = self.model_probe_head(first_token_tensor)
+            if self.model_probe_sequence:
+                model_probe_logits = self.model_probe_head(hidden_states)
+            else:
+                model_probe_logits = self.model_probe_head(first_token_tensor)
             return pooled_output, model_probe_logits
         else:
             return pooled_output
     
-    def attach_model_probe(self, n_classes, device):
+    def attach_model_probe(self, n_classes, device, sequence=False):
         self.model_probe = True
+        self.model_probe_sequence = sequence
         self.model_probe_head = nn.Linear(self.hidden_size, n_classes)
         self.model_probe_head.to(device)
 

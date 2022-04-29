@@ -7,8 +7,9 @@ nli:
   - entailment
   loss: CeCriterion
   metric_meta:
-  - F1MAC
+  - ACC
   n_class: 3
   split_names:
-  - train
+    - train
+    - test
   task_type: Classification

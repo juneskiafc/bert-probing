@@ -43,7 +43,6 @@ def compute_cmat(predicts, labels):
     return confusion_matrix(labels, predicts)
 
 def compute_seqacc(predicts, labels, label_mapper):
-    y_true, y_pred = [], []
     def trim(predict, label):
         temp_1 =  []
         temp_2 = []
@@ -57,8 +56,11 @@ def compute_seqacc(predicts, labels, label_mapper):
         temp_2.pop()
         y_true.append(temp_1)
         y_pred.append(temp_2)
+
+    y_true, y_pred = [], []
     for predict, label in zip(predicts, labels):
         trim(predict, label)
+    
     report = classification_report(y_true, y_pred, digits=4)
     return report
 
@@ -68,14 +70,16 @@ def compute_list_f1(predicts, labels, label_mapper):
         temp_2 = []
         for j, m in enumerate(predict):
             if j == 0:
-                continue
+                continue # CLS token
             if label_mapper[label[j]] != 'X':
                 temp_1.append(label_mapper[label[j]])
                 temp_2.append(label_mapper[m])
-        temp_1.pop()
+        temp_1.pop() # SEP token
         temp_2.pop()
         return temp_1, temp_2
+    
     f1 = 0
+
     for predict, label in zip(predicts, labels):
         if label == [0]*len(label): #all 'O' i.e. empty list
             if predict == [0]*len(predict):
