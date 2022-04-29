@@ -211,7 +211,7 @@ args = parser.parse_args()
 # some stuff in data can be automated
 dataset_name = args.dataset_name
 args.data_dir = f'experiments/{dataset_name}/{args.bert_model_type}'
-args.task_def = f'experiments/{dataset_name}/task_def.yaml'
+args.task_def = f'experiments/{dataset_name.split("/")[0]}/task_def.yaml'
 if "/" in dataset_name:
     args.train_datasets = dataset_name.split("/")[0].lower()
 else:
