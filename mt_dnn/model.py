@@ -66,9 +66,9 @@ class MTDNNModel(object):
     def get_head_probe_layer(self, hl):
         return self.network.get_attention_layer(hl)
     
-    def attach_head_probe(self, hl, hi, n_classes):
+    def attach_head_probe(self, hl, hi, n_classes, sequence=False):
         self.head_probe = True
-        self.network.attach_head_probe(hl, hi, n_classes, self.device)
+        self.network.attach_head_probe(hl, hi, n_classes, sequence, self.device)
 
     def detach_head_probe(self, hl):
         self.head_probe = False
@@ -238,7 +238,7 @@ class MTDNNModel(object):
         if loss_criterion and (y is not None):
             y.to(logits.device)
             if len(logits.shape) > 2:
-                # sequence model probing, combine seq w/ batch
+                # sequence output, combine seq w/ batch
                 logits = einops.rearrange(logits, 'b s c -> (b s) c')
             loss = loss_criterion(logits, y, weight, ignore_index=-1)
 

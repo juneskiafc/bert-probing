@@ -23,23 +23,25 @@ from utils import create_heatmap, build_dataset, get_metric, base_construct_mode
 
 
 def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
-    checkpoint = list(Path(f'checkpoint/{task}_{setting}').rglob('*.pt'))[0]
-    task_def_path = f'experiments/{task}/task_def.yaml'
+    checkpoint = list(Path(f'checkpoint/{task.name}_{setting.name.lower()}').rglob('*.pt'))[0]
+    task_def_path = f'experiments/{task.name}/task_def.yaml'
     config, state_dict, metric_meta = base_construct_model(checkpoint, task, task_def_path, device_id)
 
     if state_dict is not None and 'optimizer' in state_dict:
         del state_dict['optimizer']
 
+    model = MTDNNModel(config, devices=[device_id])
     if setting is LingualSetting.BASE:
-        return MTDNNModel(config, devices=[device_id])
+        return model
 
     # scoring_list classification head doesn't matter because we're just taking
     # the model probe outputs.
     if 'scoring_list.0.weight' in state_dict['state']:
-        state_dict['state']['scoring_list.0.weight'] = None
-        state_dict['state']['scoring_list.0.bias'] = None
+        state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
+        state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
 
-    return MTDNNModel(config, devices=[device_id], state_dict=state_dict)
+    model.load_state_dict(state_dict)
+    return model
 
 def evaluate_model_probe(
     downstream_task: Experiment,
@@ -127,7 +129,7 @@ def evaluate_model_probe(
         task_def.task_type,
         device_id,
         task_def.label_vocab.ind2tok,
-        model_probe=True)
+        model_probe=True)[0]
         
     return acc
 
@@ -226,11 +228,9 @@ def get_model_probe_scores(
         results_out_file.parent.mkdir(parents=True, exist_ok=True)
     
     tasks = [probe_task]
-    results = pd.DataFrame(np.zeros((1, len(tasks))))
-    results.index = [model_name]
-    results.columns = [task.name for task in tasks]
+    results = np.zeros((1, len(tasks)))
     
-    for downstream_task in tasks:
+    for i, downstream_task in enumerate(tasks):
         acc = evaluate_model_probe(
             downstream_task,
             finetuned_task,
@@ -242,11 +242,12 @@ def get_model_probe_scores(
             device_id,
             lang)
 
-        if finetuned_setting is LingualSetting.BASE:
-            results.loc[f'mBERT', downstream_task.name] = acc
-        else:
-            results.loc[f'{finetuned_task.name}_{finetuned_setting.name.lower()}', downstream_task.name] = acc
-        
+        results[0, i] = acc
+    
+    results = pd.DataFrame(results)
+    results.index = [model_name]
+    results.columns = [task.name for task in tasks]
+
     results.to_csv(results_out_file)
 
 def create_perlang_results(finetuned_task, finetuned_setting, downstream_task, langs):
@@ -403,5 +404,5 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
 
-    # get_scores_main(args)
-    create_perlang_heatmap(args)
+    get_scores_main(args)
+    # create_perlang_heatmap(args)

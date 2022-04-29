@@ -4,6 +4,7 @@ import itertools
 from argparse import ArgumentParser
 from pathlib import Path
 import torch
+from data_utils.task_def import TaskType
 from experiments.exp_def import (
     Experiment,
     LingualSetting,
@@ -74,6 +75,9 @@ def probe_heads(setting: LingualSetting,
         template += f"--epochs {epochs} --output_dir {checkpoint_dir_for_head} "
         template += f"--init_checkpoint bert-base-multilingual-cased --devices {did} "
         template += f'--head_probe --head_probe_layer {hl} --head_probe_idx {hi} --head_probe_n_classes {n_classes} '
+
+        if task_def.task_type is TaskType.SequenceLabeling:
+            template += '--head_probe_sequence '
 
         if wandb:
             template += f'--wandb --exp_name {finetuned_task.name}_{setting.name.lower()}->{task.name}'
@@ -175,10 +179,6 @@ if __name__ == '__main__':
         finetuned_settings = list(LingualSetting)
     else:
         finetuned_settings = [LingualSetting[args.finetuned_setting.upper()]]
-    
-    # finetuned_tasks = [Experiment[e] for e in ['NLI']]
-    # settings = ['cross', 'multi']
-    # downstream_tasks = [Experiment['NLI']]
 
     for downstream_task in downstream_tasks:
         for setting in finetuned_settings:            
