@@ -5,7 +5,7 @@ pawsx:
   - '0'
   - '1'
   metric_meta:
-  - ACC
+  - F1MAC
   n_class: 2
   loss: CeCriterion
   split_names:
