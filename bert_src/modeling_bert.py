@@ -237,10 +237,11 @@ class BertSelfAttention(nn.Module):
         self.is_decoder = config.is_decoder
         self.head_probe = False
     
-    def attach_head_probe(self, head_idx, n_classes=3, device_id=-1):
+    def attach_head_probe(self, head_idx, n_classes, sequence=False, device_id=-1):
         self.head_probe = True
         self.head_probe_head_idx = head_idx
         self.head_probe_dense_layer = nn.Linear(self.attention_head_size, n_classes).cuda(device=device_id)
+        self.head_probe_sequence = sequence
 
     def detach_head_probe(self):
         delattr(self, 'head_probe_dense_layer')
@@ -342,8 +343,12 @@ class BertSelfAttention(nn.Module):
         context_layer = context_layer.view(*new_context_layer_shape)
         
         if self.head_probe:
-            reshaped_context_layer = einops.rearrange(context_layer, 'b f (n h) -> b f n h', n=self.num_attention_heads)
-            head_probe_input = reshaped_context_layer[:, 0, self.head_probe_head_idx, :]
+            reshaped_context_layer = einops.rearrange(context_layer, 'b l (n h) -> b l n h', n=self.num_attention_heads)
+            
+            if self.head_probe_sequence:
+                head_probe_input = reshaped_context_layer[:, :, self.head_probe_head_idx, :]
+            else:
+                head_probe_input = reshaped_context_layer[:, 0, self.head_probe_head_idx, :]
             head_probe_output = self.head_probe_dense_layer(head_probe_input)
 
         outputs = [context_layer]

@@ -405,4 +405,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     get_scores_main(args)
-    # create_perlang_heatmap(args)
+    create_perlang_heatmap(args)
