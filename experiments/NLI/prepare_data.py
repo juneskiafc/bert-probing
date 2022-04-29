@@ -46,23 +46,23 @@ def raw_tsv_to_mtdnn_format(in_files, out_file, languages=None, excl_langs=None)
                 for row in fr:
                     if 'language' not in row:
                         row['language'] = 'en'
-                    else:
-                        # check language specific request
-                        c1 = (languages is None) or (languages is not None and row['language'] in languages)
-                        # then check excl_lang request
-                        c2 = (excl_langs is None) or (excl_langs is not None and row['language'] not in excl_langs)
+                    
+                    # check language specific request
+                    c1 = (languages is None) or (languages is not None and row['language'] in languages)
+                    # then check excl_lang request
+                    c2 = (excl_langs is None) or (excl_langs is not None and row['language'] not in excl_langs)
+                    
+                    if c1 and c2:
+                        label = row['gold_label']
+                        premise = row['sentence1']
+                        hypo = row['sentence2']
                         
-                        if c1 and c2:
-                                label = row['gold_label']
-                                premise = row['sentence1']
-                                hypo = row['sentence2']
-                                
-                                writer.writerow({
-                                    'id': line_no,
-                                    'label': label,
-                                    'premise': premise,
-                                    'hypothesis': hypo
-                                })
+                        writer.writerow({
+                            'id': line_no,
+                            'label': label,
+                            'premise': premise,
+                            'hypothesis': hypo
+                        })
                     line_no += 1
 
 
@@ -86,7 +86,7 @@ def make_crosslingual():
     if not CROSS_TRAIN.is_file():
         print('making train dataset for cross')
         raw_tsv_to_mtdnn_format([MNLI_TRAIN], CROSS_TRAIN)
-
+    
     # cross-lingual test set is XNLI test set
     if not CROSS_TEST.is_file():
         print('making test dataset for cross')
@@ -124,11 +124,12 @@ def make_foreign_14lang():
         out_file = DATA_PATH.joinpath(f'foreign_14lang/nli_{split}.tsv')
         out_file.parent.mkdir(exist_ok=True)
 
-        raw_tsv_to_mtdnn_format(
-            [MNLI_TRAIN, XNLI_DEV],
-            out_file,
-            excl_langs=['en']
-        )
+        if not out_file.is_file():
+            raw_tsv_to_mtdnn_format(
+                [MNLI_TRAIN, XNLI_DEV],
+                out_file,
+                excl_langs=['en']
+            )
 
     cmd = f'python prepro_std.py --dataset NLI/foreign_14lang --task_def experiments/NLI/task_def.yaml'
     cmd = cmd.split(' ')

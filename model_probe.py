@@ -41,11 +41,6 @@ for downstream_task in tasks:
     if downstream_task in [Experiment.NER, Experiment.POS]:
         cmd += ' --model_probe_sequence'
 
-    process = subprocess.Popen(cmd, shell=True)
-    processes.append(process)
-
-    if len(processes) == len(devices):
-        results = [p.wait() for p in processes]
-        processes = []
+    process = subprocess.run(cmd.split(' '))
 
 

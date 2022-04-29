@@ -1,153 +1,37 @@
-from typing import List, Union, Tuple
+from typing import List
 
 import argparse
 from pathlib import Path
-import torch
-from torch.utils.data import DataLoader
 
 from experiments.exp_def import (
     TaskDefs,
     Experiment
 )
-from data_utils.task_def import TaskType, EncoderModelType
-from torch.utils.data import DataLoader
-from mt_dnn.batcher import SingleTaskDataset, Collater
+from data_utils.task_def import EncoderModelType
 from mt_dnn.model import MTDNNModel
-from mt_dnn.inference import eval_model
 import pandas as pd
-import seaborn as sns
-from matplotlib import pyplot as plt
 import argparse
-
-def create_heatmap(
-    data_csv_path: str = '',
-    data_df: Union[pd.DataFrame, None] = None,
-    row_labels: List[str] = None,
-    column_labels: List[str] = None,
-    xaxlabel: str = None,
-    yaxlabel: str = None,
-    invert_y: bool = False,
-    figsize: Tuple[int, int] = (14, 14),
-    fontsize: int = 14,
-    cmap: str = 'RdYlGn',
-    out_file: str= ''):
-
-    # read data if dataframe not directly supplied.
-    if data_df is None:
-        data_df = pd.read_csv(data_csv_path, index_col=0)
-        assert len(out_file) > 0, f'invalid csv: {data_csv_path}'
-    
-    plt.figure(figsize=figsize)
-    annot_kws = {
-        "fontsize":fontsize,
-    }
-    heatmap = sns.heatmap(
-        data_df.to_numpy(),
-        cbar=False,
-        annot=True,
-        annot_kws=annot_kws,
-        fmt=".2f",
-        cmap=cmap)
-
-    if invert_y:
-        heatmap.invert_yaxis()
-
-    heatmap.set_xlabel(xaxlabel, fontsize=fontsize)
-    heatmap.set_ylabel(yaxlabel, fontsize=fontsize)
-
-    heatmap.set_yticklabels(row_labels, rotation=0, fontsize=fontsize)
-    heatmap.set_xticklabels(column_labels, rotation=0, fontsize=fontsize)
-
-    heatmap.tick_params(labeltop=True, labelbottom=False, bottom=False)
-
-    fig = heatmap.get_figure()
-    fig.savefig(Path(out_file).with_suffix('.pdf'), bbox_inches='tight')
-
-def build_dataset(data_path, batch_size, max_seq_len, task_def, device_id):
-    test_data_set = SingleTaskDataset(
-        path=data_path,
-        is_train=False,
-        maxlen=max_seq_len,
-        task_id=0,
-        task_def=task_def
-    )
-
-    collater = Collater(is_train=False, encoder_type=EncoderModelType.BERT)
-
-    test_data = DataLoader(
-        test_data_set,
-        batch_size=batch_size,
-        collate_fn=collater.collate_fn,
-        pin_memory=device_id > 0
-    )
-
-    return test_data
+from utils import get_metric, create_heatmap, build_dataset, base_construct_model
 
 def construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int, task_id: int = 0):
-    task_defs = TaskDefs(task_def_path)
-    task_name = task.name.lower()
-    metric_meta = task_defs._metric_meta_map[task_name]
+    config, state_dict, metric_meta = base_construct_model(checkpoint, task, task_def_path, device_id)
 
-    state_dict = torch.load(checkpoint, map_location=f'cuda:{device_id}')
-    
-    config = state_dict['config']
-    config['fp16'] = False
-    config['answer_opt'] = 0
-    config['adv_train'] = False
-    
-    task_def_list = [task_defs.get_task_def(task_name)]
-    config['task_def_list'] = task_def_list
-    config["cuda"] = True
-    config['device'] = device_id
-    del state_dict['optimizer']
+    if state_dict is not None:
+        del state_dict['optimizer']
 
-    if task_id != 0:
-        state_dict['state']['scoring_list.0.weight'] = state_dict['state'][f'scoring_list.{task_id}.weight']
-        state_dict['state']['scoring_list.0.bias'] = state_dict['state'][f'scoring_list.{task_id}.bias']
+        # we load the task we want to evaluate on the first scoring list, then delete the rest
+        if task_id != 0:
+            state_dict['state']['scoring_list.0.weight'] = state_dict['state'][f'scoring_list.{task_id}.weight']
+            state_dict['state']['scoring_list.0.bias'] = state_dict['state'][f'scoring_list.{task_id}.bias']
 
-    # remove non pertinent scoring lists.
-    i = 1
-    while f'scoring_list.{i}.weight' in state_dict['state']:
-        del state_dict['state'][f'scoring_list.{i}.weight']
-        del state_dict['state'][f'scoring_list.{i}.bias']
-        i += 1
+        i = 1
+        while f'scoring_list.{i}.weight' in state_dict['state']:
+            del state_dict['state'][f'scoring_list.{i}.weight']
+            del state_dict['state'][f'scoring_list.{i}.bias']
+            i += 1
 
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
-
-def get_metric(model, test_data, metric_meta, task_type, device_id, head_probe, label_mapper=None):
-    with torch.no_grad():
-        model.network.eval()
-        model.network.to(device_id)
-        
-        results = eval_model(
-            model,
-            test_data,
-            task_type=task_type,
-            metric_meta=metric_meta,
-            device=device_id,
-            with_label=True,
-            head_probe=head_probe,
-            label_mapper=label_mapper
-        )
-    
-    metrics = results[0]
-    predictions = results[1]
-    golds = results[3]
-    ids = results[4]
-
-    preds_df = pd.Series(predictions)
-    golds_df = pd.Series(golds)
-    id_df = pd.Series(ids)
-
-    if 'ACC' in metrics:
-        metric = metrics['ACC']
-    elif 'F1MAC' in metrics:
-        metric = metrics['F1MAC']
-    elif 'SeqEvalList' in metrics:
-        metric = metrics['SeqEvalList']
-    
-    return metric, preds_df, golds_df, id_df
 
 def evaluate_model_against_multiple_datasets(
     model: MTDNNModel,
@@ -183,7 +67,6 @@ def evaluate_model_against_multiple_datasets(
             metric_meta,
             task_def.task_type,
             device_id,
-            head_probe=False,
             label_mapper=task_def.label_vocab.ind2tok)[0]
         
         metrics.append(metric)
@@ -193,7 +76,7 @@ def evaluate_model_against_multiple_datasets(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--device_id', type=int, default=0)
-    parser.add_argument('--model_ckpt', type=str)
+    parser.add_argument('--model_ckpt', type=str, default='')
     parser.add_argument('--out_file', type=str, default='')
     parser.add_argument('--task', type=str)
     parser.add_argument('--model_type', type=str, default='bert')
@@ -235,7 +118,7 @@ if __name__ == '__main__':
         root_ckpt_path = Path('checkpoint/')
         encoder_type = EncoderModelType[args.model_type.upper()]
         
-        task_def_path = f'experiments/{task.name}/{datasets[0]}/task_def.yaml'
+        task_def_path = f'experiments/{task.name}/task_def.yaml'
 
         model, metric_meta = construct_model(
             args.model_ckpt,

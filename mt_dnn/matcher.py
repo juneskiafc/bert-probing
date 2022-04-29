@@ -11,7 +11,6 @@ from torch.nn.modules.normalization import LayerNorm
 from data_utils.task_def import EncoderModelType, TaskType
 import tasks
 from experiments.exp_def import TaskDef
-import transformers
 
 def generate_decoder_opt(enable_san, max_opt):
     opt_v = 0
@@ -102,9 +101,9 @@ class SANBertNetwork(nn.Module):
                 assert self_attention_layer.__class__.__name__ == 'BertSelfAttention', self_attention_layer.__class__.__name__
                 return self_attention_layer
     
-    def attach_head_probe(self, attention_layer_to_probe, head_idx_to_probe, n_classes, device):
+    def attach_head_probe(self, attention_layer_to_probe, head_idx_to_probe, n_classes, sequence, device):
         layer = self.get_attention_layer(attention_layer_to_probe)
-        layer.attach_head_probe(head_idx_to_probe, n_classes, device)
+        layer.attach_head_probe(head_idx_to_probe, n_classes, sequence, device)
     
     def detach_head_probe(self, hl):
         layer = self.get_attention_layer(hl)
@@ -170,7 +169,10 @@ class SANBertNetwork(nn.Module):
             if task_type == TaskType.SequenceLabeling:
                 model_probe_output = model_probe_output.contiguous().view(-1, model_probe_output.size(2))
             return model_probe_output
+
         elif head_probe:
+            if task_type == TaskType.SequenceLabeling:
+                head_probe_output = head_probe_output.contiguous().view(-1, head_probe_output.size(2))
             return head_probe_output
     
         if task_obj is not None: # Classification
