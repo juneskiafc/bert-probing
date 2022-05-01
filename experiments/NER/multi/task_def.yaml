@@ -13,13 +13,8 @@ ner:
   - CLS
   - SEP
   metric_meta:
-<<<<<<< HEAD
-  - F1MAC
-  n_class: 7
-=======
   - SeqEvalList
   n_class: 10
->>>>>>> 100739a123d352d6d10ce69adaeaf4920cba3ab0
   loss: CeCriterion
   split_names:
   - train
