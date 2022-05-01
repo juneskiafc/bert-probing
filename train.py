@@ -452,8 +452,9 @@ def main():
 
             # don't need pooler weights of finetuned model if we're head_probing on a SL task
             if task_def_list[0].task_type is TaskType.SequenceLabeling:
-                del state_dict['state']['pooler.dense.weight']
-                del state_dict['state']['pooler.dense.bias']
+                if 'pooler.dense.weight' in state_dict['state']:
+                    del state_dict['state']['pooler.dense.weight']
+                    del state_dict['state']['pooler.dense.bias']
             
             model.load_state_dict(state_dict)
         
