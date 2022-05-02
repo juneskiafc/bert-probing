@@ -284,8 +284,8 @@ def distribute_heads_to_gpus(
 
     # quick check for done
     heads_to_distribute = []
-    for hl in range(12):
-        for hi in range(12):
+    for hl in range(0, 12):
+        for hi in range(0, 12):
             result_csv_for_head = root_out_path.joinpath(
                 finetuned_task.name,
                 downstream_task.name,
@@ -475,11 +475,20 @@ def get_results_csvs(
     
     print(f'Getting result csvs for {finetuned_task.name}_{setting.name} -> {downstream_task.name}...')
 
-    raw_results_path = Path('head_probe_outputs').joinpath(
-        finetuned_task.name,
-        downstream_task.name,
-        setting.name.lower(),
-        'results.csv')
+    if setting is not LingualSetting.BASE:
+        raw_results_path = Path('head_probe_outputs').joinpath(
+            finetuned_task.name,
+            downstream_task.name,
+            setting.name.lower(),
+            'results.csv'
+        )
+    else:
+       raw_results_path = Path('head_probe_outputs').joinpath(
+            'mBERT',
+            downstream_task.name,
+            'base',
+            'results.csv'
+        ) 
 
     raw_results = pd.read_csv(raw_results_path, index_col=0)
     
@@ -508,11 +517,18 @@ def get_results_csvs(
                 out_df.to_csv(out_file)
     
     if do_combined:
-        combined_out_file = Path('head_probe_outputs').joinpath(
-            finetuned_task.name,
-            downstream_task.name,
-            setting.name.lower(),
-            f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}-{combined_postfix}.csv')
+        if setting is LingualSetting.BASE:
+            combined_out_file = Path('head_probe_outputs').joinpath(
+                'mBERT',
+                downstream_task.name,
+                setting.name.lower(),
+                f'{setting.name.lower()}-{downstream_task.name.lower()}-{combined_postfix}.csv')
+        else:
+            combined_out_file = Path('head_probe_outputs').joinpath(
+                finetuned_task.name,
+                downstream_task.name,
+                setting.name.lower(),
+                f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}-{combined_postfix}.csv')
 
         if Path(combined_out_file).is_file():
             print(f'\tDone: {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{combined_postfix}]')
@@ -546,8 +562,8 @@ def get_final_probing_result(
         else:
             print(f'Getting final pretty results for {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{combined_postfix}]...', end='')
 
-        base_prefix = Path(f'head_probe_outputs/{finetuned_task.name}/{downstream_task.name}/base')
-        base_postfix = f'{finetuned_task.name.lower()}_base-{downstream_task.name.lower()}'
+        base_prefix = Path(f'head_probe_outputs/mBERT/{downstream_task.name}')
+        base_postfix = f'base/base-{downstream_task.name.lower()}'
 
         prefix = Path(f'head_probe_outputs/{finetuned_task.name}/{downstream_task.name}/{setting.name.lower()}')
         postfix = f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}'
@@ -625,6 +641,7 @@ if __name__ == '__main__':
     
     if args.downstream_task == '':
         downstream_tasks = list(Experiment)
+        # downstream_tasks.remove(Experiment.NLI)
     else:
         downstream_tasks = [Experiment[args.downstream_task.upper()]]
     

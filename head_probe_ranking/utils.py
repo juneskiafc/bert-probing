@@ -3,7 +3,7 @@ from multiprocessing.sharedctypes import Value
 from pathlib import Path
 import shutil
 import altair as alt
-from multidict import upstr
+import matplotlib.pyplot as plt
 import pandas as pd
 import itertools
 import numpy as np
@@ -192,6 +192,84 @@ def plot_altair(dfs):
 
     return chart
 
+def plot_pyplot_cross_probing(data):
+    font_size = 14
+    parameters = {
+        'axes.labelsize': font_size,
+        'xtick.labelsize': font_size,
+        'ytick.labelsize': font_size,
+        'axes.titlesize': font_size,
+        'legend.fontsize': font_size,
+    }
+    plt.rcParams.update(parameters)
+    colors = get_colors_as_hex()
+    colors = colors[::-1]
+
+    for k in range(24, 144, 24):
+        global_fig = plt.figure(constrained_layout=True, figsize=(20, 10))
+        subfigs = global_fig.subfigures(1, 1)
+
+        layer_dfs = []
+        for layer in range(12):
+            d = []
+            for downstream_task in ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']:
+                data_for_ds_task = data[k][downstream_task]
+                df_for_ds_task = pd.DataFrame(data_for_ds_task).T
+                d.append(df_for_ds_task.iloc[:, layer])
+            d = pd.concat(d, axis=1).T
+            d.index = ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']
+            layer_dfs.append(d)
+        
+        ds_tasks = ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']
+        ds_tasks_real_names = ['POS', 'NER', 'PI', 'SA', 'XNLI']
+
+        axes = subfigs.subplots(1, 5, sharey=True)
+        plt.subplots_adjust(wspace=0.0001)
+        bounds = list(axes[0]._position.bounds)
+        bounds[1] += 0.02
+        bounds[0] -= 0.081
+        bounds[3] += 0.074
+        bounds[2] += 0.813
+        global_ax = subfigs.add_axes(bounds)
+        global_ax.patch.set_alpha(0)
+        global_ax.xaxis.set_ticks([])
+        global_ax.yaxis.set_ticks([])
+
+        for i, ax_for_ds_task in enumerate(axes):
+            models_to_plot = itertools.product([ds_tasks[j] for j in range(5)], ['cross', 'multi'])
+            model_names_to_plot = itertools.product([ds_tasks_real_names[j] for j in range(5)], ['cross', 'multi'])
+            models_to_plot = [f'{m[0]}_{m[1]}' for m in models_to_plot]
+            model_names_to_plot = [f'{m[0]}-{m[1]}-ling' for m in model_names_to_plot]
+
+            bottom = 0
+            for layer in range(12):
+                bar = ax_for_ds_task.bar(
+                    model_names_to_plot,
+                    layer_dfs[layer].loc[ds_tasks[i], models_to_plot],
+                    bottom=bottom,
+                    color=colors[layer])
+                if i == 0:
+                    bar.set_label(str(layer+1))
+                bottom += layer_dfs[layer].loc[ds_tasks[i], models_to_plot]
+
+            ax_for_ds_task.set_frame_on(False)
+            if i > 0:
+                ax_for_ds_task.get_yaxis().set_visible(False)
+
+            ax_for_ds_task.set_xticks(
+                ax_for_ds_task.get_xticks(),
+                model_names_to_plot,
+                rotation=45,
+                ha='right',
+                rotation_mode='anchor')
+
+            ax_for_ds_task.set_title(ds_tasks_real_names[i])
+
+        handles, labels = axes[0].get_legend_handles_labels()
+        global_fig.legend(handles[::-1], labels[::-1], loc='right', bbox_to_anchor=(1.05, 0.5))
+        plt.savefig(f'head_probe_ranking/cross_probing_k={k}.pdf', bbox_inches='tight')
+        raise ValueError
+
 def plot_altair_cross_probing(data):
     charts = []
     for k in range(24, 144, 24):
@@ -261,6 +339,10 @@ if __name__ == '__main__':
     #     ax = plot_altair(dataframes)
     #     altair_saver.save(ax, str(save_path))
 
+    cross_probing_move_files()
+    # for setting in ['combined']:
+    #     data = preprocess_ranked_heads_cross_probing(setting)
+    #     plot_pyplot_cross_probing(data)
     for setting in ['combined']:
         data = preprocess_ranked_heads_cross_probing(setting)
         axes = plot_altair_cross_probing(data)

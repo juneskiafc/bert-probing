@@ -105,54 +105,6 @@ def probe_heads(setting: LingualSetting,
     # Collect statuses
     results = [p[-1].communicate() for p in processes]
 
-def probe_model(finetuned_setting: LingualSetting,
-                finetuned_task: Experiment,
-                downstream_setting: LingualSetting,
-                downstream_task: Experiment,
-                devices: List[int]):
-    task_info_str = f'{finetuned_task.name}_{setting.name.lower()} -> {downstream_task.name}, {downstream_setting.name.lower()}'
-    devices = ' '.join([str(d) for d in devices])
-
-    # where all the data and task_def are stored.
-    task_root = Path(f'experiments/{downstream_task.name}')
-
-    # programmatically get n_classes for task
-    task_def_path = task_root.joinpath('task_def.yaml')
-    task_def = TaskDefs(task_def_path).get_task_def(downstream_task.name.lower())
-    n_classes = task_def.n_class
-
-    if finetuned_setting is LingualSetting.BASE:
-        checkpoint_dir = Path('checkpoint/full_model_probe').joinpath(
-            f'{downstream_setting.name.lower()}_head_training',
-            'mBERT',
-            downstream_task.name)
-    else:
-        checkpoint_dir = Path('checkpoint/full_model_probe').joinpath(
-            f'{downstream_setting.name.lower()}_head_training',
-            finetuned_task.name,
-            finetuned_setting.name.lower(),
-            downstream_task.name)
-
-    if checkpoint_dir.is_dir():
-        print(f'{checkpoint_dir} exists, skipping {task_info_str}')
-        return
-
-    template = f'python train.py --local_rank -1 '
-    template += f'--dataset_name {downstream_task.name}/{downstream_setting.name.lower()} '
-    
-    if setting is not LingualSetting.BASE:
-        finetuned_checkpoint_dir = Path(f'checkpoint/{finetuned_task.name}_{finetuned_setting.name.lower()}')
-        finetuned_checkpoint = list(finetuned_checkpoint_dir.rglob('model_5*.pt'))[0]
-        template += f"--resume --model_ckpt {finetuned_checkpoint} "
-    
-    template += f"--epochs 2 --output_dir {checkpoint_dir} "
-    template += f"--init_checkpoint bert-base-multilingual-cased --devices {devices} "
-    template += f'--model_probe --model_probe_n_classes {n_classes}' # layer 12, head 0 is final CLS
-
-    print(task_info_str)
-    process = subprocess.Popen(template, shell=True)
-    results = process.communicate()
-
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--downstream_task', type=str, default='')
@@ -176,7 +128,7 @@ if __name__ == '__main__':
         downstream_tasks = list(Experiment)
     
     if args.finetuned_setting == '':
-        finetuned_settings = list(LingualSetting)
+        finetuned_settings = [LingualSetting.MULTI, LingualSetting.CROSS]
     else:
         finetuned_settings = [LingualSetting[args.finetuned_setting.upper()]]
 

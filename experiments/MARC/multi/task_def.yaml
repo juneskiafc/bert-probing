@@ -8,7 +8,7 @@ marc:
   - '4'
   - '5'
   metric_meta:
-  - ACC
+  - F1MAC
   n_class: 5
   loss: CeCriterion
   split_names:

@@ -456,6 +456,15 @@ def main():
                     del state_dict['state']['pooler.dense.weight']
                     del state_dict['state']['pooler.dense.bias']
             
+            else:
+                # if loaded checkpoint is NER or POS, but head probing on a Classification task,
+                # match params.
+                # this has no effect on results, but allows you to load state dict with strict=True,
+                # which is safer.
+                if 'pooler.dense.weight' not in state_dict['state']:
+                   state_dict['state']['pooler.dense.weight'] = model.network.state_dict()['pooler.dense.weight']
+                   state_dict['state']['pooler.dense.bias'] = model.network.state_dict()['pooler.dense.bias']
+            
             model.load_state_dict(state_dict)
         
         # then attach probing head
