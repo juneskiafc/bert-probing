@@ -93,26 +93,16 @@ def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def, de
 
     return test_data
 
-def construct_model(finetuned_task: Experiment, setting: LingualSetting, device_id: int):
-    if setting is LingualSetting.BASE:
-        task_def_path = Path('experiments').joinpath(
-            finetuned_task.name,
-            'cross',
-            'task_def.yaml'
-        )
-    else:
-        task_def_path = Path('experiments').joinpath(
-            finetuned_task.name,
-            setting.name.lower(),
-            'task_def.yaml'
-        )
+def construct_model(finetuned_task: Experiment, setting: LingualSetting, head_probe_task_type: TaskType, device_id: int):
+    task_def_path = Path('experiments').joinpath(
+        finetuned_task.name,
+        'task_def.yaml'
+    )
 
     task_defs = TaskDefs(task_def_path)
     assert finetuned_task.name.lower() in task_defs._task_type_map
     assert finetuned_task.name.lower() in task_defs._data_type_map
     assert finetuned_task.name.lower() in task_defs._metric_meta_map
-
-    metric_meta = task_defs._metric_meta_map[finetuned_task.name.lower()]
 
     # load model
     if setting is not LingualSetting.BASE:
@@ -133,6 +123,7 @@ def construct_model(finetuned_task: Experiment, setting: LingualSetting, device_
     task_def = task_defs.get_task_def(finetuned_task.name.lower())
     task_def_list = [task_def]
     config['task_def_list'] = task_def_list
+    config['head_probe_task_type'] = head_probe_task_type
     config["cuda"] = True
     config['device'] = device_id
 
@@ -150,9 +141,9 @@ def construct_model(finetuned_task: Experiment, setting: LingualSetting, device_
     if setting is not LingualSetting.BASE:
         model.load_state_dict(state_dict)
     
-    return model, metric_meta
+    return model
 
-def get_acc(model, test_data, metric_meta, device_id, head_probe):
+def get_acc(model, test_data, metric_meta, task_type, label_mapper, device_id, head_probe):
     with torch.no_grad():
         model.network.eval()
         model.network.to(device_id)
@@ -160,12 +151,14 @@ def get_acc(model, test_data, metric_meta, device_id, head_probe):
         results = eval_model(
             model,
             test_data,
-            task_type=TaskType.Classification,
+            task_type=task_type,
             metric_meta=metric_meta,
             device=device_id,
             with_label=True,
-            head_probe=head_probe
+            head_probe=head_probe,
+            label_mapper=label_mapper
         )
+    
     metrics = results[0]
     predictions = results[1]
     golds = results[3]
@@ -174,7 +167,7 @@ def get_acc(model, test_data, metric_meta, device_id, head_probe):
     preds_df = pd.Series(predictions)
     golds_df = pd.Series(golds)
     id_df = pd.Series(ids)
-    return metrics['F1MAC'], preds_df, golds_df, id_df
+    return metrics[metric_meta[0].name], preds_df, golds_df, id_df
 
 def evaluate_head_probe(
     hlhis: List,
@@ -196,11 +189,18 @@ def evaluate_head_probe(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     task_def_path = Path('experiments').joinpath(
-        finetuned_task.name,
-        'cross',
+        downstream_task.name,
         'task_def.yaml'
     )
-    task_def = TaskDefs(task_def_path).get_task_def(finetuned_task.name.lower())
+
+    task_def = TaskDefs(task_def_path).get_task_def(downstream_task.name.lower())
+    metric_meta = task_def.metric_meta
+
+    if task_def.task_type is TaskType.SequenceLabeling:
+        sequence = True
+    else:
+        sequence = False
+
     data_path = Path('experiments').joinpath(
         downstream_task.name,
         'multi',
@@ -226,9 +226,10 @@ def evaluate_head_probe(
             task_def,
             device_id)
     
-        model, metric_meta = construct_model(
+        model = construct_model(
             finetuned_task,
             setting,
+            task_def.task_type,
             device_id)
     
     for (hl, hi) in hlhis_to_probe:
@@ -248,7 +249,7 @@ def evaluate_head_probe(
         state_dict_for_head = torch.load(str(state_dict_for_head))['state']
 
         # then attach the probing layer
-        model.attach_head_probe(hl, hi, task_def.n_class)
+        model.attach_head_probe(hl, hi, task_def.n_class, sequence=sequence)
 
         # get the layer and check
         layer = model.network.get_attention_layer(hl)
@@ -262,7 +263,15 @@ def evaluate_head_probe(
         layer.head_probe_dense_layer.bias = nn.Parameter(bias.to(device_id))
 
         # compute acc and save
-        _, preds_for_layer, golds, ids = get_acc(model, test_data, metric_meta, device_id, head_probe=True)
+        _, preds_for_layer, golds, ids = get_acc(
+            model,
+            test_data,
+            metric_meta,
+            task_def.task_type,
+            task_def.label_vocab.ind2tok,
+            device_id,
+            head_probe=True
+        )
         pd.Series(preds_for_layer).to_csv(output_file_for_head)
 
         # save labels and ids

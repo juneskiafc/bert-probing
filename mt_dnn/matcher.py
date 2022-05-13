@@ -171,7 +171,7 @@ class SANBertNetwork(nn.Module):
             return model_probe_output
 
         elif head_probe:
-            if task_type == TaskType.SequenceLabeling:
+            if self.config['head_probe_task_type'] is TaskType.SequenceLabeling:
                 head_probe_output = head_probe_output.contiguous().view(-1, head_probe_output.size(2))
             return head_probe_output
     
