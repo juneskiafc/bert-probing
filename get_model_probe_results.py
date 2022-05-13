@@ -20,6 +20,7 @@ from experiments.exp_def import (
     TaskDefs,
 )
 from utils import create_heatmap, build_dataset, get_metric, base_construct_model
+import transformers
 
 
 def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
