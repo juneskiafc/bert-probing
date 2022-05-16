@@ -246,7 +246,10 @@ def evaluate_head_probe(
             str(hi))
 
         state_dict_for_head = list(state_dict_for_head.rglob("*.pt"))[0]
-        state_dict_for_head = torch.load(str(state_dict_for_head))['state']
+        try:
+            state_dict_for_head = torch.load(str(state_dict_for_head))['state']
+        except:
+            raise ValueError(state_dict_for_head)
 
         # then attach the probing layer
         model.attach_head_probe(hl, hi, task_def.n_class, sequence=sequence)
