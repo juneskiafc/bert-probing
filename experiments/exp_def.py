@@ -13,6 +13,7 @@ class Experiment(Enum):
     NER = 2
     PAWSX = 3
     MARC = 4
+    BERT = 5
 
 class LingualSetting(Enum):
     BASE = 0
