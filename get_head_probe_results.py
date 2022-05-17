@@ -1,3 +1,4 @@
+import pickle
 from typing import List, Union, Tuple, Dict
 import argparse
 from collections import defaultdict
@@ -94,6 +95,14 @@ def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def, de
     return test_data
 
 def construct_model(finetuned_task: Experiment, setting: LingualSetting, head_probe_task_type: TaskType, device_id: int):
+    if finetuned_task is Experiment.BERT:
+        with open('checkpoint/dummy_config.pkl', 'rb') as f:
+            config = pickle.load(f)
+        
+        model = MTDNNModel(config, devices=[device_id])
+        return model
+    
+
     task_def_path = Path('experiments').joinpath(
         finetuned_task.name,
         'task_def.yaml'
@@ -105,13 +114,9 @@ def construct_model(finetuned_task: Experiment, setting: LingualSetting, head_pr
     assert finetuned_task.name.lower() in task_defs._metric_meta_map
 
     # load model
-    if setting is not LingualSetting.BASE:
-        checkpoint_dir = Path('checkpoint').joinpath(f'{finetuned_task.name}_{setting.name.lower()}')
-        checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
-        assert os.path.exists(checkpoint), checkpoint
-    else:
-        checkpoint_dir = Path('checkpoint').joinpath(f'{finetuned_task.name}_cross')
-        checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
+    checkpoint_dir = Path('checkpoint').joinpath(f'{finetuned_task.name}_{setting.name.lower()}')
+    checkpoint = list(checkpoint_dir.rglob('model_5*.pt'))[0]
+    assert os.path.exists(checkpoint), checkpoint
 
     state_dict = torch.load(checkpoint)
     config = state_dict['config']
@@ -138,9 +143,7 @@ def construct_model(finetuned_task: Experiment, setting: LingualSetting, head_pr
         state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
         state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
 
-    if setting is not LingualSetting.BASE:
-        model.load_state_dict(state_dict)
-    
+    model.load_state_dict(state_dict)
     return model
 
 def get_acc(model, test_data, metric_meta, task_type, label_mapper, device_id, head_probe):
@@ -336,11 +339,13 @@ def evaluate_head_probe_multi_gpu_wrapper(
     
     print('Evaluating the accuracy of each head...')
 
+    if finetuned_task is Experiment.BERT:
+        settings = [LingualSetting.BASE]
+    else:
+        settings = [LingualSetting.MULTI, LingualSetting.CROSS]
+
     for downstream_task in downstream_tasks:
-        for setting in [
-            LingualSetting.CROSS,
-            LingualSetting.MULTI
-            ]:
+        for setting in settings:
             out_results_file = root_out_path.joinpath(
                 finetuned_task.name,
                 downstream_task.name,
@@ -638,7 +643,7 @@ def get_final_probing_result(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--devices', nargs='+', default='')
-    parser.add_argument('--finetuned_task', type=str)
+    parser.add_argument('--finetuned_task', type=str, default='')
     parser.add_argument('--downstream_task', type=str, default='')
     parser.add_argument("--combined_postfix", type=str, default='combined')
     parser.add_argument('--do_individual', action='store_true')
@@ -653,11 +658,12 @@ if __name__ == '__main__':
     
     if args.downstream_task == '':
         downstream_tasks = list(Experiment)
-        # downstream_tasks.remove(Experiment.NLI)
     else:
         downstream_tasks = [Experiment[args.downstream_task.upper()]]
     
-    finetuned_task = Experiment[args.finetuned_task.upper()]
+    if args.finetuned_task != '':
+        finetuned_task = Experiment[args.finetuned_task.upper()]
+    
     evaluate_head_probe_multi_gpu_wrapper(finetuned_task, downstream_tasks, devices=args.devices)
 
     languages = [
