@@ -94,16 +94,16 @@ def subsample_and_combine(foreign_dataset, ps):
                     writer.writerow(r)
 
 if __name__ == '__main__':
-    # out_dir = Path(f'experiments/PAWSX/cross')
-    # langs = ['en']
-    # _prepare_data(langs, langs, out_dir)
+    out_dir = Path(f'experiments/PAWSX/multi')
+    langs = ['en', 'fr', 'de', 'es']
+    _prepare_data(langs, langs, out_dir)
     
     # out_dir = Path(f'experiments/PAWSX/fr')
     # langs = ['fr']
     # _prepare_data(langs, langs, out_dir)
     
-    foreign_dataset = 'experiments/PAWSX/foreign/pawsx_train.tsv'
-    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+    # foreign_dataset = 'experiments/PAWSX/foreign/pawsx_train.tsv'
+    # subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
 
 
 
