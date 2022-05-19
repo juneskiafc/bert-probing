@@ -108,8 +108,7 @@ def probe_heads(setting: LingualSetting,
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--downstream_task', type=str, default='')
-    parser.add_argument('--downstream_setting', type=str, default='multi')
-    parser.add_argument('--finetuned_task', type=str, default='NLI')
+    parser.add_argument('--finetuned_task', type=str, default='')
     parser.add_argument('--finetuned_setting', type=str, default='')
     parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--devices', nargs='+')
@@ -121,6 +120,9 @@ if __name__ == '__main__':
         devices = [int(d) for d in args.devices]
     else:
         devices = list(range(torch.cuda.device_count()))
+
+    if args.finetuned_task != '':
+        finetuned_task = Experiment[args.finetuned_task.upper()]
 
     if args.downstream_task != '':
         downstream_tasks = [Experiment[args.downstream_task.upper()]]
@@ -136,7 +138,7 @@ if __name__ == '__main__':
         for setting in finetuned_settings:            
             probe_heads(
                 setting=setting,            
-                finetuned_task=Experiment[args.finetuned_task.upper()],
+                finetuned_task=finetuned_task,
                 task=downstream_task,
                 devices=devices,
                 models_per_gpu=args.models_per_gpu,

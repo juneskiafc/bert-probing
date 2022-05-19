@@ -99,6 +99,7 @@ def construct_model(finetuned_task: Experiment, setting: LingualSetting, head_pr
         with open('checkpoint/dummy_config.pkl', 'rb') as f:
             config = pickle.load(f)
         
+        config['head_probe_task_type'] = head_probe_task_type
         model = MTDNNModel(config, devices=[device_id])
         return model
     
@@ -501,7 +502,7 @@ def get_results_csvs(
         )
     else:
        raw_results_path = Path('head_probe_outputs').joinpath(
-            'mBERT',
+            'BERT',
             downstream_task.name,
             'base',
             'results.csv'
@@ -536,7 +537,7 @@ def get_results_csvs(
     if do_combined:
         if setting is LingualSetting.BASE:
             combined_out_file = Path('head_probe_outputs').joinpath(
-                'mBERT',
+                'BERT',
                 downstream_task.name,
                 setting.name.lower(),
                 f'{setting.name.lower()}-{downstream_task.name.lower()}-{combined_postfix}.csv')
@@ -579,7 +580,7 @@ def get_final_probing_result(
         else:
             print(f'Getting final pretty results for {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{combined_postfix}]...', end='')
 
-        base_prefix = Path(f'head_probe_outputs/mBERT/{downstream_task.name}')
+        base_prefix = Path(f'head_probe_outputs/BERT/{downstream_task.name}')
         base_postfix = f'base/base-{downstream_task.name.lower()}'
 
         prefix = Path(f'head_probe_outputs/{finetuned_task.name}/{downstream_task.name}/{setting.name.lower()}')
@@ -658,12 +659,11 @@ if __name__ == '__main__':
     
     if args.downstream_task == '':
         downstream_tasks = list(Experiment)
+        downstream_tasks.remove(Experiment.BERT)
     else:
         downstream_tasks = [Experiment[args.downstream_task.upper()]]
     
-    if args.finetuned_task != '':
-        finetuned_task = Experiment[args.finetuned_task.upper()]
-    
+    finetuned_task = Experiment[args.finetuned_task.upper()]
     evaluate_head_probe_multi_gpu_wrapper(finetuned_task, downstream_tasks, devices=args.devices)
 
     languages = [
@@ -672,8 +672,18 @@ if __name__ == '__main__':
         'es',
         'de'
     ]
+
+    if finetuned_task is not Experiment.BERT:
+        settings = [
+            LingualSetting.BASE,
+            LingualSetting.CROSS,
+            LingualSetting.MULTI
+        ]
+    else:
+        settings = [LingualSetting.BASE]
+
     for downstream_task in downstream_tasks:
-        for setting in [LingualSetting.BASE, LingualSetting.CROSS, LingualSetting.MULTI]:
+        for setting in settings:
             get_results_csvs(
                 finetuned_task,
                 downstream_task,
@@ -684,10 +694,11 @@ if __name__ == '__main__':
                 combined_postfix=args.combined_postfix
             )
 
-        get_final_probing_result(
-            finetuned_task,
-            downstream_task,
-            languages,
-            do_individual=args.do_individual,
-            do_combined=args.do_combined,
-            combined_postfix=args.combined_postfix)
+        if finetuned_task is not Experiment.BERT:
+            get_final_probing_result(
+                finetuned_task,
+                downstream_task,
+                languages,
+                do_individual=args.do_individual,
+                do_combined=args.do_combined,
+                combined_postfix=args.combined_postfix)
