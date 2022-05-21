@@ -3,23 +3,18 @@ import argparse
 import subprocess
 from experiments.exp_def import (
     Experiment,
+    TaskDef,
+    TaskDefs,
 )
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_ckpt', type=str, default='')
 parser.add_argument('--task', type=str, default='')
+parser.add_argument('--devices', nargs='+')
 args = parser.parse_args()
 
 model_ckpt = Path(args.model_ckpt)
-task_to_n_classes = {
-    'NLI': 3,
-    'POS': 19,
-    'PAWSX': 2,
-    'MARC': 5,
-    'NER': 10
-}
-seeds = 1
-devices = [1, 2]
+devices = [int(d) for d in args.devices]
 
 processes = []
 if args.task == '':
@@ -30,9 +25,13 @@ else:
 for downstream_task in tasks:
     exp_name = f'{model_ckpt.parent.name}:{downstream_task.name}'
     dataset = f'{downstream_task.name}/cross'
+    
+    task_def_path = Path('experiments').joinpath(downstream_task.name, 'task_def.yaml')
+    task_def = TaskDefs(task_def_path).get_task_def(downstream_task.name.lower())
+
     cmd = 'python train.py'
     cmd += f' --devices {devices[len(processes)]}'
-    cmd += f' --model_probe --model_probe_n_classes {task_to_n_classes[downstream_task.name]}'
+    cmd += f' --model_probe --model_probe_n_classes {task_def.n_class}'
     cmd += f' --exp_name {exp_name}'
     cmd += f' --dataset_name {dataset}'
     cmd += ' --epochs 2'

@@ -499,6 +499,11 @@ def main():
                 state_dict['state']['pooler.dense.weight'] = model.network.state_dict()['pooler.dense.weight']
                 state_dict['state']['pooler.dense.bias'] = model.network.state_dict()['pooler.dense.bias']
             
+            # if model finetuend under Classification and model probing on SequenceLabeling
+            if 'pooler.dense.weight' in state_dict['state'] and 'pooler.dense.weight' not in model.network.state_dict():
+                del state_dict['state']['pooler.dense.weight']
+                del state_dict['state']['pooler.dense.bias']
+            
             model.load_state_dict(state_dict)
         
         # then attach probing head
