@@ -5,6 +5,7 @@ import argparse
 from collections import defaultdict
 from pathlib import Path
 import os
+from unittest.loader import VALID_MODULE_NAME
 
 import numpy as np
 import pandas as pd
@@ -214,7 +215,7 @@ def evaluate_head_probe(
     # quick scan for done.
     hlhis_to_probe = []
     for (hl, hi) in hlhis:
-        output_file_for_head = output_dir.joinpath(f'{hl}_{hi}.csv')
+        output_file_for_head = output_dir.joinpath(f'{hl}_{hi}.jsonl')
         if not output_file_for_head.is_file():
             hlhis_to_probe.append((hl, hi))
     
@@ -309,7 +310,7 @@ def distribute_heads_to_gpus(
                 finetuned_task.name,
                 downstream_task.name,
                 setting.name.lower(),
-                f'{hl}_{hi}.csv')
+                f'{hl}_{hi}.jsonl')
             if not result_csv_for_head.is_file():
                 heads_to_distribute.append((hl, hi))
             else:
@@ -350,43 +351,34 @@ def evaluate_head_probe_multi_gpu_wrapper(
 
     for downstream_task in downstream_tasks:
         for setting in settings:
-            out_results_file = root_out_path.joinpath(
-                finetuned_task.name,
-                downstream_task.name,
-                setting.name.lower(),
-                'results.csv')
+            print(f'\tEvaluating for {finetuned_task.name}_{setting.name} -> {downstream_task.name}.')
 
-            if Path(out_results_file).is_file():
-                print(f'\tDone and collected: {finetuned_task.name}_{setting.name} -> {downstream_task.name}.')
-            else:
-                print(f'\tEvaluating for {finetuned_task.name}_{setting.name} -> {downstream_task.name}.')
+            available_devices = [int(d) for d in args.devices]
+            hlhis, devices = distribute_heads_to_gpus(
+                root_out_path,
+                finetuned_task,
+                downstream_task,
+                setting,
+                available_devices
+            )
+            eval_head_probe_args = []
 
-                available_devices = [int(d) for d in args.devices]
-                hlhis, devices = distribute_heads_to_gpus(
-                    root_out_path,
+            for i, hlhi_set in enumerate(hlhis):
+                args_ = [
+                    hlhi_set,
                     finetuned_task,
                     downstream_task,
                     setting,
-                    available_devices
-                )
-                eval_head_probe_args = []
-
-                for i, hlhi_set in enumerate(hlhis):
-                    args_ = [
-                        hlhi_set,
-                        finetuned_task,
-                        downstream_task,
-                        setting,
-                        args.batch_size,
-                        args.max_seq_len,
-                        devices[i]
-                    ]
-                    eval_head_probe_args.append(tuple(args_))
-                
-                with torch.multiprocessing.get_context('spawn').Pool(len(available_devices)) as p:
-                    p.starmap(evaluate_head_probe, eval_head_probe_args)
-                
-                print(f'\n\t Done: {finetuned_task.name}_{setting.name} -> {downstream_task.name}. Collecting...')
+                    args.batch_size,
+                    args.max_seq_len,
+                    devices[i]
+                ]
+                eval_head_probe_args.append(tuple(args_))
+            
+            with torch.multiprocessing.get_context('spawn').Pool(len(available_devices)) as p:
+                p.starmap(evaluate_head_probe, eval_head_probe_args)
+            
+            print(f'\n\t Done: {finetuned_task.name}_{setting.name} -> {downstream_task.name}.')
 
 def get_lang_to_id(task: Experiment) -> Dict[str, List[int]]:
     def _pawsx():
@@ -480,20 +472,22 @@ def get_results_csvs(
         line_pointer = 0
         data = []
         with jsonlines.open(file, 'r') as reader:
-            for i, line in reader:
+            for i, line in enumerate(reader):
                 if (lines is None) or (i == lines[line_pointer]):
                     data.append(line)
                     line_pointer += 1
+                    if lines is not None and line_pointer == len(lines):
+                        return data
         return data
     
-    def _get_metric_for_heads(root, labels, ids, metric, label_mapper):
+    def _get_metric_for_heads(root, labels, ids, metric_meta, label_mapper):
         results = np.zeros((12, 12))
         
         for hl in range(12):
             for hi in range(12):
                 preds_for_head = _read_jsonl_subset(root.joinpath(f'{hl}_{hi}.jsonl'), ids)
-                metric = calc_metrics(metric, labels, preds_for_head, metric, label_mapper=label_mapper)
-                results[hl, hi] = metric
+                metric = calc_metrics(metric_meta, labels, preds_for_head, scores=None, label_mapper=label_mapper)
+                results[hl, hi] = metric[metric_meta[0].name]
         
         return results
     
@@ -526,7 +520,10 @@ def get_results_csvs(
                 print(f'\tDone: {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{lang}]')
             else:  
                 ids = language_to_ids[lang]
-                labels = _read_jsonl_subset(labels_path, ids)
+                try:
+                    labels = _read_jsonl_subset(labels_path, ids)
+                except:
+                    raise ValueError(len(ids))
                 results = _get_metric_for_heads(
                     root,
                     labels,
@@ -552,7 +549,7 @@ def get_results_csvs(
                 metric_meta,
                 task_def.label_vocab.ind2tok
             )
-            
+
             out_df = pd.DataFrame(results)
             out_df.to_csv(combined_out_file)
     
