@@ -20,10 +20,16 @@ from experiments.exp_def import (
     TaskDefs,
 )
 from utils import create_heatmap, build_dataset, get_metric, base_construct_model
-import transformers
+import pickle
 
 
 def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
+    if task is Experiment.BERT:
+        with open('checkpoint/dummy_config.pkl', 'rb') as fr:
+            config = pickle.load(fr)
+            model = MTDNNModel(config, devices=[device_id])
+            return model
+    
     checkpoint = list(Path(f'checkpoint/{task.name}_{setting.name.lower()}').rglob('*.pt'))[0]
     task_def_path = f'experiments/{task.name}/task_def.yaml'
     config, state_dict, metric_meta = base_construct_model(checkpoint, task, task_def_path, device_id)
@@ -32,8 +38,6 @@ def construct_model(task: Experiment, setting: LingualSetting, device_id: int):
         del state_dict['optimizer']
 
     model = MTDNNModel(config, devices=[device_id])
-    if setting is LingualSetting.BASE:
-        return model
 
     # scoring_list classification head doesn't matter because we're just taking
     # the model probe outputs.
@@ -91,16 +95,23 @@ def evaluate_model_probe(
     if finetuned_setting is not LingualSetting.BASE:
         print(f'\n{finetuned_task.name}_{finetuned_setting.name.lower()} model probed on {downstream_task.name} [{lang}], model probe setting: {probe_setting.name.lower()}')
     else:
-        print(f'\nmBERT -> {downstream_task.name} [{lang}], probe setting: {probe_setting.name.lower()}')
+        print(f'\nBERT -> {downstream_task.name} [{lang}], probe setting: {probe_setting.name.lower()}')
     
     # load state dict for the attention head
     if model_ckpt is None: 
         if finetuned_setting is not LingualSetting.BASE:
             state_dict_for_head = Path('checkpoint').joinpath(
-                f'{finetuned_task.name}_{finetuned_setting.name.lower()}:{downstream_task.name}'
+                'model_probing',
+                finetuned_task.name,
+                finetuned_setting.name.lower(),
+                downstream_task.name,
             )
         else:
-            state_dict_for_head = Path('checkpoint').joinpath(f'mBERT:{downstream_task.name}')
+            state_dict_for_head = Path('checkpoint').joinpath(
+                'model_probing',
+                finetuned_task.name,
+                downstream_task.name,
+            )
         state_dict_for_head = list(state_dict_for_head.rglob("*.pt"))[0]
     else:
         state_dict_for_head = Path(model_ckpt)
@@ -188,14 +199,14 @@ def get_model_probe_final_score(
 
     result_path_for_finetuned_model = final_results_out_file.parent.joinpath('results.csv')
     
-    result_path_for_mBERT = Path(f'model_probe_outputs').joinpath(
-            f'mBERT',
+    result_path_for_BERT = Path(f'model_probe_outputs').joinpath(
+            f'BERT',
             'results.csv')
     
     finetuned_results = pd.read_csv(result_path_for_finetuned_model, index_col=0)
-    mBERT_results = pd.read_csv(result_path_for_mBERT, index_col=0)
+    BERT_results = pd.read_csv(result_path_for_BERT, index_col=0)
 
-    final_results = pd.DataFrame(finetuned_results.values - mBERT_results.values)
+    final_results = pd.DataFrame(finetuned_results.values - BERT_results.values)
     final_results.index = finetuned_results.index
     final_results.columns = finetuned_results.columns
     final_results.to_csv(final_results_out_file)
@@ -213,7 +224,7 @@ def get_model_probe_scores(
     max_seq_len: int = 512):
     
     if finetuned_setting is LingualSetting.BASE:
-        model_name = 'mBERT'
+        model_name = 'BERT'
     else:
         model_name = f'{finetuned_task.name}_{finetuned_setting.name.lower()}'
 
@@ -262,8 +273,12 @@ def create_perlang_results(finetuned_task, finetuned_setting, downstream_task, l
             data.loc[0, lang] = results.iloc[0, 0]
         
         return data
-
-    root = Path(f'model_probe_outputs/{finetuned_task}_{finetuned_setting}')
+    
+    if finetuned_task is Experiment.BERT:
+        root = Path(f'model_probe_outputs/{finetuned_task}')
+    else:
+        root = Path(f'model_probe_outputs/{finetuned_task}_{finetuned_setting}')
+    
     output_path = root.parent.joinpath(f'results/{finetuned_task}_{finetuned_setting.lower()}-{downstream_task}.csv')
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -273,7 +288,7 @@ def create_perlang_results(finetuned_task, finetuned_setting, downstream_task, l
     
     model_data = get_data(root)
 
-    base = root.parent.joinpath('mBERT')
+    base = root.parent.joinpath('BERT')
     base_data = get_data(base)
 
     data = model_data - base_data
@@ -359,9 +374,19 @@ def create_perlang_heatmap(args):
     out_file = Path(f'model_probe_outputs/results/{args.finetuned_task}-{args.finetuned_setting}.csv')
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
+    exp_name_map = {
+        'NLI': 'XNLI',
+        'PAWSX': 'PI',
+        'MARC': 'SA'
+    }
+
     if not out_file.is_file():
-        tasks = ['NLI', 'POS', 'NER', 'PAWSX', 'MARC']
-        indicies = ['XNLI', 'POS', 'NER', 'PI', 'SA']
+        if args.probe_task == '':
+            tasks = ['NLI', 'POS', 'NER', 'PAWSX', 'MARC']
+        else:
+            tasks = [args.probe_task.upper()]
+        
+        indicies = [exp_name_map[t] if t in exp_name_map else t for t in tasks]
         langs = ['en', 'fr', 'de', 'es', 'multi']
         data = np.zeros((len(tasks), len(langs)))
 
@@ -370,26 +395,27 @@ def create_perlang_heatmap(args):
                 args.finetuned_task,
                 args.finetuned_setting,
                 task,
-                langs)
+                langs
+            )
             data[i, :] = data_for_task.values
 
-        data = pd.DataFrame(data)
-        data.index = indicies
-        data.columns = langs
-        data.to_csv(out_file)
+        # data = pd.DataFrame(data)
+        # data.index = indicies
+        # data.columns = langs
+        # data.to_csv(out_file)
     
     else:
         data = pd.read_csv(out_file, index_col=0)
     
-    create_heatmap(
-        data_df=data,
-        row_labels=data.index,
-        column_labels=data.columns,
-        xaxlabel='language',
-        yaxlabel='task',
-        fontsize=20,
-        figsize=(10, 10),
-        out_file=out_file.with_suffix('.pdf'))
+    # create_heatmap(
+    #     data_df=data,
+    #     row_labels=data.index,
+    #     column_labels=data.columns,
+    #     xaxlabel='language',
+    #     yaxlabel='task',
+    #     fontsize=20,
+    #     figsize=(10, 10),
+    #     out_file=out_file.with_suffix('.pdf'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
