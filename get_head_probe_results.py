@@ -1,3 +1,4 @@
+from email.policy import default
 import pickle
 from typing import List, Union, Tuple, Dict
 import argparse
@@ -9,10 +10,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-from sklearn.metrics import accuracy_score
 
 from datasets import Dataset, load_dataset
 from conllu import parse_incr
+import jsonlines
 
 import torch
 from torch import nn
@@ -22,6 +23,7 @@ from mt_dnn.batcher import SingleTaskDataset, Collater
 from mt_dnn.model import MTDNNModel
 from mt_dnn.inference import eval_model
 
+from data_utils.metrics import calc_metrics
 from data_utils.task_def import EncoderModelType, TaskType
 from experiments.exp_def import (
     Experiment,
@@ -168,10 +170,7 @@ def get_acc(model, test_data, metric_meta, task_type, label_mapper, device_id, h
     golds = results[3]
     ids = results[4]
 
-    preds_df = pd.Series(predictions)
-    golds_df = pd.Series(golds)
-    id_df = pd.Series(ids)
-    return metrics[metric_meta[0].name], preds_df, golds_df, id_df
+    return metrics[metric_meta[0].name], predictions, golds, ids
 
 def evaluate_head_probe(
     hlhis: List,
@@ -238,7 +237,7 @@ def evaluate_head_probe(
     
     for (hl, hi) in hlhis_to_probe:
         print(f'\n[{finetuned_task.name}/{downstream_task.name}, {setting.name}]: {hl}_{hi}...')
-        output_file_for_head = output_dir.joinpath(f'{hl}_{hi}.csv')
+        output_file_for_head = output_dir.joinpath(f'{hl}_{hi}.jsonl')
 
         # load state dict for the attention head.
         state_dict_for_head = Path('checkpoint').joinpath(
@@ -279,14 +278,18 @@ def evaluate_head_probe(
             device_id,
             head_probe=True
         )
-        pd.Series(preds_for_layer).to_csv(output_file_for_head)
+
+        with jsonlines.open(output_file_for_head, 'w') as writer:
+            writer.write_all(preds_for_layer)
 
         # save labels and ids
-        if not output_dir.joinpath(f'labels.csv').is_file():
-            pd.Series(golds).to_csv(output_dir.joinpath(f'labels.csv'))
+        if not output_dir.joinpath(f'labels.jsonl').is_file():
+            with jsonlines.open(output_dir.joinpath(f'labels.jsonl'), 'w') as writer:
+                writer.write_all(golds)
         
-        if not output_dir.joinpath(f'ids.csv').is_file():
-            pd.Series(ids).to_csv(output_dir.joinpath(f'ids.csv'))
+        if not output_dir.joinpath(f'ids.jsonl').is_file():
+            with jsonlines.open(output_dir.joinpath(f'ids.jsonl'), 'w') as writer:
+                writer.write_all(ids)
         
         # detach
         model.detach_head_probe(hl)
@@ -383,25 +386,7 @@ def evaluate_head_probe_multi_gpu_wrapper(
                 with torch.multiprocessing.get_context('spawn').Pool(len(available_devices)) as p:
                     p.starmap(evaluate_head_probe, eval_head_probe_args)
                 
-                # collect.
                 print(f'\n\t Done: {finetuned_task.name}_{setting.name} -> {downstream_task.name}. Collecting...')
-                output_dir = Path('head_probe_outputs').joinpath(
-                    finetuned_task.name,
-                    downstream_task.name,
-                    setting.name.lower()
-                )
-
-                full_layer_results = []
-                for hl in range(12):
-                    for hi in range(12):
-                        result_for_layer = pd.read_csv(output_dir.joinpath(f'{hl}_{hi}.csv'), index_col=0)
-                        full_layer_results.append(result_for_layer)
-                
-                full_ids = pd.read_csv(output_dir.joinpath(f'ids.csv'), index_col=0)
-                full_golds = pd.read_csv(output_dir.joinpath(f'labels.csv'), index_col=0)
-
-                full_results = pd.concat([full_ids, full_golds] + full_layer_results, axis=1)
-                full_results.to_csv(output_dir.joinpath(f'results.csv'))
 
 def get_lang_to_id(task: Experiment) -> Dict[str, List[int]]:
     def _pawsx():
@@ -420,7 +405,7 @@ def get_lang_to_id(task: Experiment) -> Dict[str, List[int]]:
 
         dataset_dirs = [
             data_root.joinpath('en/UD_English-EWT'),
-            data_root.joinpath('fr/UD_French-FTB'),
+            data_root.joinpath('fr/UD_French-GSD'),
             data_root.joinpath('de/UD_German-GSD'),
             data_root.joinpath('es/UD_Spanish-AnCora')
         ]
@@ -460,6 +445,17 @@ def get_lang_to_id(task: Experiment) -> Dict[str, List[int]]:
         
         return lang_to_id
     
+    def _nli():
+        lang_to_id = defaultdict(list)
+        root = Path('experiments/NLI/data_raw/xnli.test.jsonl')
+
+        with jsonlines.open(root) as f:
+            for i, row in enumerate(f):
+                lang = row['language']
+                lang_to_id[lang].append(i)
+        
+        return lang_to_id
+
     if task is Experiment.POS:
         return _pos()
     elif task is Experiment.NER:
@@ -468,8 +464,8 @@ def get_lang_to_id(task: Experiment) -> Dict[str, List[int]]:
         return _pawsx()
     elif task is Experiment.MARC:
         return _marc()
-    else:
-        raise NotImplementedError(task.name)
+    elif task is Experiment.NLI:
+        return _nli()
 
 def get_results_csvs(
     finetuned_task: Experiment,
@@ -479,83 +475,85 @@ def get_results_csvs(
     do_individual=True,
     do_combined=True,
     combined_postfix='combined'):
-
-    def _get_acc_for_heads(labels, preds):
+    
+    def _read_jsonl_subset(file, lines):
+        line_pointer = 0
+        data = []
+        with jsonlines.open(file, 'r') as reader:
+            for i, line in reader:
+                if (lines is None) or (i == lines[line_pointer]):
+                    data.append(line)
+                    line_pointer += 1
+        return data
+    
+    def _get_metric_for_heads(root, labels, ids, metric, label_mapper):
         results = np.zeros((12, 12))
         
         for hl in range(12):
             for hi in range(12):
-                preds_for_head = preds.iloc[:, hl*12+hi]
-                acc = accuracy_score(labels, preds_for_head)
-                results[hl, hi] = acc
+                preds_for_head = _read_jsonl_subset(root.joinpath(f'{hl}_{hi}.jsonl'), ids)
+                metric = calc_metrics(metric, labels, preds_for_head, metric, label_mapper=label_mapper)
+                results[hl, hi] = metric
         
         return results
     
     print(f'Getting result csvs for {finetuned_task.name}_{setting.name} -> {downstream_task.name}...')
 
-    if setting is not LingualSetting.BASE:
-        raw_results_path = Path('head_probe_outputs').joinpath(
-            finetuned_task.name,
-            downstream_task.name,
-            setting.name.lower(),
-            'results.csv'
-        )
-    else:
-       raw_results_path = Path('head_probe_outputs').joinpath(
-            'BERT',
-            downstream_task.name,
-            'base',
-            'results.csv'
-        ) 
+    root = Path('head_probe_outputs').joinpath(
+        finetuned_task.name,
+        downstream_task.name,
+        setting.name.lower()
+    )
 
-    raw_results = pd.read_csv(raw_results_path, index_col=0)
-    
+    task_def_path = Path('experiments').joinpath(
+        downstream_task.name,
+        'task_def.yaml'
+    )
+    task_def = TaskDefs(task_def_path).get_task_def(downstream_task.name.lower())
+    metric_meta = task_def.metric_meta
+
+    labels_path = root.joinpath('labels.jsonl')
+    out_file_prefix = f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}'
+
     if do_individual:
         language_to_ids = get_lang_to_id(downstream_task)
 
         # individual languages
         for lang in languages:
-            out_file = Path('head_probe_outputs').joinpath(
-                finetuned_task.name,
-                downstream_task.name,
-                setting.name.lower(),
-                f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}-{lang}-pure.csv')
+            out_file = root.joinpath(f'{out_file_prefix}-{lang}-pure.csv')
             
             if Path(out_file).is_file():
                 print(f'\tDone: {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{lang}]')
             else:  
                 ids = language_to_ids[lang]
-                data_for_lang = raw_results.iloc[ids, :]
-
-                labels = data_for_lang.iloc[:, 1]
-                preds = data_for_lang.iloc[:, 2:]
-                results = _get_acc_for_heads(labels, preds)
+                labels = _read_jsonl_subset(labels_path, ids)
+                results = _get_metric_for_heads(
+                    root,
+                    labels,
+                    ids,
+                    metric_meta,
+                    task_def.label_vocab.ind2tok
+                )
                 
                 out_df = pd.DataFrame(results)
                 out_df.to_csv(out_file)
     
     if do_combined:
-        if setting is LingualSetting.BASE:
-            combined_out_file = Path('head_probe_outputs').joinpath(
-                'BERT',
-                downstream_task.name,
-                setting.name.lower(),
-                f'{setting.name.lower()}-{downstream_task.name.lower()}-{combined_postfix}.csv')
-        else:
-            combined_out_file = Path('head_probe_outputs').joinpath(
-                finetuned_task.name,
-                downstream_task.name,
-                setting.name.lower(),
-                f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}-{combined_postfix}.csv')
+        combined_out_file = root.joinpath(f'{out_file_prefix}-{combined_postfix}.csv')
 
         if Path(combined_out_file).is_file():
             print(f'\tDone: {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{combined_postfix}]')
         else:
-            combined_labels = raw_results.iloc[:, 1]
-            combined_preds = raw_results.iloc[:, 2:]
-
-            combined_results = _get_acc_for_heads(combined_labels, combined_preds)
-            out_df = pd.DataFrame(combined_results)
+            labels = _read_jsonl_subset(labels_path, None)
+            results = _get_metric_for_heads(
+                root,
+                labels,
+                None,
+                metric_meta,
+                task_def.label_vocab.ind2tok
+            )
+            
+            out_df = pd.DataFrame(results)
             out_df.to_csv(combined_out_file)
     
 def get_final_probing_result(
@@ -581,7 +579,7 @@ def get_final_probing_result(
             print(f'Getting final pretty results for {finetuned_task.name}_{setting.name} -> {downstream_task.name} [{combined_postfix}]...', end='')
 
         base_prefix = Path(f'head_probe_outputs/BERT/{downstream_task.name}')
-        base_postfix = f'base/base-{downstream_task.name.lower()}'
+        base_postfix = f'base/bert_base-{downstream_task.name.lower()}'
 
         prefix = Path(f'head_probe_outputs/{finetuned_task.name}/{downstream_task.name}/{setting.name.lower()}')
         postfix = f'{finetuned_task.name.lower()}_{setting.name.lower()}-{downstream_task.name.lower()}'
@@ -675,7 +673,6 @@ if __name__ == '__main__':
 
     if finetuned_task is not Experiment.BERT:
         settings = [
-            LingualSetting.BASE,
             LingualSetting.CROSS,
             LingualSetting.MULTI
         ]
