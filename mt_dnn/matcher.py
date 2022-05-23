@@ -56,6 +56,10 @@ class SANBertNetwork(nn.Module):
         for task_id in range(len(task_def_list)):
             task_def: TaskDef = task_def_list[task_id]
             lab = task_def.n_class
+
+            if opt['gradient_probe']:
+                lab = opt['gradient_probe_n_classes']
+            
             decoder_opt = self.decoder_opt[task_id]
             task_type = self.task_types[task_id]
 
