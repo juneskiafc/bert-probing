@@ -1,6 +1,8 @@
 """ Fine-tuning the library models for named entity recognition on CoNLL-2003. """
+from argparse import ArgumentParser
 import torch
 import einops
+from data_utils.task_def import EncoderModelType
 from mt_dnn.batcher import Collater
 from pathlib import Path
 import pandas as pd
@@ -8,8 +10,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from scipy.stats import spearmanr, pearsonr
-from itertools import product, combinations
-from experiments.exp_def import LingualSetting, Experiment
+from itertools import combinations
+from experiments.exp_def import Experiment, LingualSetting, TaskDefs
+
+from mt_dnn.model import MTDNNModel
+from utils import create_heatmap, base_construct_model, build_dataset
 
 def min_max_norm(matrix):
     min_ = torch.min(matrix)
@@ -32,30 +37,6 @@ def raw_to_final_form(raw_attention_gradients):
     attention_gradients = min_max_norm(attention_gradients)
 
     return attention_gradients
-
-def plot_heatmap(attention_gradients, output_path):  
-    font_size = 45
-    plt.figure(figsize=(20, 16))  
-    annot_kws = {'fontsize': font_size}
-    ax = sns.heatmap(
-        attention_gradients,
-        cbar=False,
-        annot=False,
-        annot_kws=annot_kws,
-        xticklabels=list(range(1, 13)),
-        yticklabels=list(range(1, 13)),
-        fmt=".2f")
-
-    ax.invert_yaxis()
-    ax.set_xticklabels(list(range(1, 13)))
-    ax.set_yticklabels(list(range(1, 13)))
-    ax.set_xlabel('heads', fontsize=font_size)
-    ax.set_ylabel('layers', fontsize=font_size)
-    ax.tick_params(axis='x', labelsize=font_size)
-    ax.tick_params(axis='y', labelsize=font_size)
-
-    fig = ax.get_figure()
-    fig.savefig(output_path, bbox_inches='tight')
 
 def compute_correlation(method='pearson'):
     root = Path('gradient_probe_outputs')
@@ -158,16 +139,59 @@ def compute_correlation(method='pearson'):
         fig = ax.get_figure()
         fig.savefig(root.joinpath(data[0]), bbox_inches='tight')
 
-def prediction_gradient(args, model, dataloader, save_path):
+def prediction_gradient(
+    finetuned_task,
+    finetuned_setting,
+    downstream_task,
+    downstream_setting,
+    device_id,
+    save_dir,
+    batch_size=8
+):
+    task_def_path_for_data = Path('experiments').joinpath(downstream_task, 'task_def.yaml')
+    task_def_for_data = TaskDefs(task_def_path_for_data).get_task_def(downstream_task.lower())
+    task_def_path_for_model = Path('experiments').joinpath(finetuned_task, 'task_def.yaml')
+
+    data_path = Path('experiments').joinpath(
+        downstream_task,
+        downstream_setting,
+        'bert-base-multilingual-cased',
+        f'{downstream_task.lower()}_train.json'
+    )
+    print(f'building data from {data_path}')
+    dataloader = build_dataset(
+        data_path,
+        EncoderModelType.BERT,
+        batch_size=8,
+        max_seq_len=512,
+        task_def=task_def_for_data,
+        is_train=True)
+    
+    model_ckpt = list(Path('checkpoint').joinpath(f'{finetuned_task}_{finetuned_setting}').rglob("model_5*.pt"))[0]
+    print(f'loading model from {model_ckpt}')
+    config, state_dict, _ = base_construct_model(
+        model_ckpt,
+        Experiment[finetuned_task.upper()],
+        task_def_path_for_model,
+        device_id
+    )
+    model = MTDNNModel(config, state_dict=state_dict, devices=[device_id])
+
+    save_path = save_dir.joinpath(
+        finetuned_task,
+        downstream_task,
+        finetuned_setting
+    )
+
     if not save_path.joinpath('grad.pt').is_file():
         save_path.mkdir(parents=True, exist_ok=True)
 
         n_batches = len(dataloader)
-        attention_gradients = torch.zeros((len(dataloader) * args.batch_size, 12, 12))
+        attention_gradients = torch.zeros((len(dataloader) * batch_size, 12, 12))
 
         for i, (batch_meta, batch_data) in enumerate(dataloader):
             batch_meta, batch_data = Collater.patch_data(
-                torch.device(args.devices[0]),
+                torch.device(device_id),
                 batch_meta,
                 batch_data)
             model.get_update_gradients(batch_meta, batch_data)
@@ -194,9 +218,40 @@ def prediction_gradient(args, model, dataloader, save_path):
         attention_gradients = torch.load(save_path.joinpath('grad.pt'))
 
     attention_gradients = raw_to_final_form(attention_gradients)
-    plot_heatmap(attention_gradients, save_path.joinpath(f'{save_path.name}.pdf'))
+    attention_gradients = attention_gradients.detach().cpu().numpy()
+    attention_gradients = pd.DataFrame(attention_gradients)
+    attention_gradients.to_csv(save_path.joinpath('grad.csv'))
+
+    create_heatmap(
+        data_df=attention_gradients,
+        row_labels=list(range(1, 13)),
+        column_labels=list(range(1, 13)),
+        xaxlabel='heads',
+        yaxlabel='layers',
+        figsize=(20, 16),
+        fontsize=45,
+        invert_y=True,
+        out_file=save_path.joinpath(f'grad.pdf')
+    )
 
 if __name__ == '__main__':
-    prediction_gradient()
-    for method in ['pearson', 'spearman']:
-        compute_correlation(method)
+    parser = ArgumentParser()
+    parser.add_argument("--finetuned_task", default='')
+    parser.add_argument('--finetuned_setting', default='')
+    parser.add_argument('--downstream_task', default='')
+    parser.add_argument('--downstream_setting', default='cross')
+    parser.add_argument('--save_dir', default='gradient_probing_outputs')
+    parser.add_argument('--device_id', default=0)
+    args = parser.parse_args()
+    
+    prediction_gradient(
+        args.finetuned_task,
+        args.finetuned_setting,
+        args.downstream_task,
+        args.downstream_setting,
+        args.device_id,
+        Path(args.save_dir)
+    )
+
+    # for method in ['pearson', 'spearman']:
+    #     compute_correlation(method)
