@@ -278,5 +278,5 @@ if __name__ == "__main__":
 
     parser.add_argument('--diffs_to_compare', nargs='+')
     args = parser.parse_args()
-
+    
     main_sequence(args.model_ckpt, args.model_name, args.output_dir)

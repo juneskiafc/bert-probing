@@ -60,17 +60,18 @@ def create_heatmap(
 
     fig = heatmap.get_figure()
     fig.savefig(Path(out_file).with_suffix('.pdf'), bbox_inches='tight')
+    print(f'figure saved at {out_file}')
 
-def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def):
+def build_dataset(data_path, encoder_type, batch_size, max_seq_len, task_def, is_train=False):
     test_data_set = SingleTaskDataset(
         path=data_path,
-        is_train=False,
+        is_train=is_train,
         maxlen=max_seq_len,
         task_id=0,
         task_def=task_def
     )
 
-    collater = Collater(is_train=False, encoder_type=encoder_type)
+    collater = Collater(is_train=is_train, encoder_type=encoder_type)
 
     test_data = DataLoader(
         test_data_set,

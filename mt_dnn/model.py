@@ -184,22 +184,17 @@ class MTDNNModel(object):
             else:
                 weight = batch_data[batch_meta['factor']]
 
-        logits, head_probe_logits, model_probe_logits = self.mnetwork(*inputs)
+        logits = self.mnetwork(*inputs, model_probe=False, head_probe=False)
 
         # compute loss
         loss = 0
         loss_criterion = self.task_loss_criterion[task_id]
         if loss_criterion and (y is not None):
             y.to(logits.device)
-            if head_probe_logits is None and model_probe_logits is None:
-                loss = loss_criterion(logits, y, weight, ignore_index=-1)
-            else:
-                if head_probe_logits is not None:
-                    loss = loss_criterion(head_probe_logits, y, weight, ignore_index=-1)
-                elif model_probe_logits is not None:
-                    loss = loss_criterion(model_probe_logits, y, weight, ignore_index=-1)
-                else:
-                    raise ValueError
+            if len(logits.shape) > 2:
+                # sequence output, combine seq w/ batch
+                logits = einops.rearrange(logits, 'b s c -> (b s) c')
+            loss = loss_criterion(logits, y, weight, ignore_index=-1)
 
         batch_size = batch_data[batch_meta['token_id']].size(0)
         self.train_loss.update(loss.item(), batch_size)
