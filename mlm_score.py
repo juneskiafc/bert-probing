@@ -234,7 +234,8 @@ def main(
                         "bert.pooler.dense.weight",
                         "bert.pooler.dense.bias"
                     ]:
-                        del state_dict[param]
+                        if param in state_dict:
+                            del state_dict[param]
         else:
             state_dict = None
 
@@ -329,24 +330,24 @@ if __name__ == '__main__':
     base_model_name = "bert-base-multilingual-cased"
 
     if task is Experiment['NLI']:
-        # datasets = [
-        #     'ar',
-        #     'bg',
-        #     'de',
-        #     'el',
-        #     'es',
-        #     'fr',
-        #     'hi',
-        #     'ru',
-        #     'sw',
-        #     'th',
-        #     'tr',
-        #     'ur',
-        #     'vi',
-        #     'zh',
-        #     'en'
-        # ]
-        datasets = ['foreign']
+        datasets = [
+            'ar',
+            'bg',
+            'de',
+            'el',
+            'es',
+            'fr',
+            'hi',
+            'ru',
+            'sw',
+            'th',
+            'tr',
+            'ur',
+            'vi',
+            'zh',
+            'en',
+            'foreign'
+        ]
         main(
             task,
             'NLI',
@@ -355,29 +356,15 @@ if __name__ == '__main__':
             datasets,
             device_id=args.device_id
         )
-
-        # datasets = [
-        #     'de',
-        #     'es',
-        #     'fr',
-        #     'en'
-        # ]
-        # main(
-        #     task, 
-        #     'NLI_EN-FR-DE-ES',
-        #     checkpoint_dir.joinpath('4lang/pytorch_model.bin'),
-        #     args.huggingface_ckpt,
-        #     datasets,
-        #     device_id=args.device_id
-        # )
         
     else: 
         if args.model_ckpt != '':
             model_name = Path(args.model_ckpt).parent.name
         else:
-            model_name = 'mBERT'
-        langs = ['foreign_0', 'foreign_1', 'foreign_2', 'foreign_3']
-        # langs = ['en', 'es', 'fr', 'de']
+            model_name = 'BERT'
+        
+        # langs = ['foreign_0', 'foreign_1', 'foreign_2', 'foreign_3']
+        langs = ['en', 'es', 'fr', 'de']
         # langs = [
         #     'en',
         #     'es_0',

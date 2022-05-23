@@ -56,8 +56,8 @@ def evaluate_model_against_multiple_datasets(
 
         test_data = build_dataset(
             data_path,
+            encoder_type=EncoderModelType.BERT,
             task_def=task_def,
-            device_id=device_id,
             batch_size=8,
             max_seq_len=512)
 
