@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import itertools
 import numpy as np
+from scipy.stats import spearmanr
 import matplotlib.colors as mcolors
 import altair_saver
 
@@ -28,10 +29,7 @@ def cross_probing_move_files():
         for downstream_task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
             for lingual_setting in ['cross', 'multi']:
                 for setting in ['combined']:
-                    if upstream_task == 'NLI':
-                        upstream_task_lower = 'xnli'
-                    else:
-                        upstream_task_lower = upstream_task.lower()
+                    upstream_task_lower = upstream_task.lower()
                     src = root.joinpath(
                         upstream_task,
                         downstream_task,
@@ -42,7 +40,6 @@ def cross_probing_move_files():
                     shutil.copy(src, dst)
 
 def rank_heads():
-    # for setting in ['en', 'foreign', 'combined']:
     setting = 'combined'
     for upstream_task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
         for downstream_task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
@@ -127,7 +124,6 @@ def get_colors_as_hex():
 
     #Base colors are in RGB so they need to be converted to HEX
     BASE_COLORS_hex = {name:mcolors.rgb2hex(color) for name,color in mcolors.BASE_COLORS.items()}
-
 
     all_named_colors = {}
     all_named_colors.update(mcolors.TABLEAU_COLORS)
@@ -329,20 +325,36 @@ def plot_altair_cross_probing(data):
     
     return charts
 
-if __name__ == '__main__':
-    # cross_probing_move_files()
-    # rank_heads()
-    # for setting in ['combined']:
-    #     save_path = Path(f'head_probe_ranking/plots/plot_topk/{setting}_ranks.svg')
-    #     save_path.parent.mkdir(parents=True, exist_ok=True)
-    #     dataframes = preprocess_ranked_heads(setting)
-    #     ax = plot_altair(dataframes)
-    #     altair_saver.save(ax, str(save_path))
+def get_n_overlap_heads(finetuned_task, finetuned_setting, downstream_task, k):
+    ranks_for_finetuned_dir = Path('head_probe_ranking').joinpath(
+        'combined',
+        finetuned_task,
+        downstream_task,
+        finetuned_setting
+    )
+    ranks_for_finetuned = list(ranks_for_finetuned_dir.rglob("*.np"))[0]
+    ranks_for_finetuned = pd.read_csv(ranks_for_finetuned, index_col=0)
+    
+    ranks_for_baseline_dir = Path('head_probe_ranking').joinpath(
+        'combined',
+        downstream_task,
+        downstream_task,
+        'cross'
+    )
+    ranks_for_baseline = list(ranks_for_baseline_dir.rglob("*.np"))[0]
+    ranks_for_baseline = pd.read_csv(ranks_for_baseline, index_col=0)
 
+    ranks_for_finetuned = ranks_for_finetuned.iloc[:k]
+    ranks_for_baseline = ranks_for_baseline.iloc[:k]
+
+    n_overlap = len(set(ranks_for_finetuned.values.flatten()).intersection(set(ranks_for_baseline.values.flatten())))
+    corr, p = spearmanr(ranks_for_finetuned, ranks_for_baseline)
+
+    return n_overlap, corr, p
+
+def ranking_main():
     cross_probing_move_files()
-    # for setting in ['combined']:
-    #     data = preprocess_ranked_heads_cross_probing(setting)
-    #     plot_pyplot_cross_probing(data)
+
     for setting in ['combined']:
         data = preprocess_ranked_heads_cross_probing(setting)
         axes = plot_altair_cross_probing(data)
@@ -351,4 +363,10 @@ if __name__ == '__main__':
             save_path = Path(f'head_probe_ranking/plots/cross_head_probing/{ks[i]}_{setting}_ranks.png')
             save_path.parent.mkdir(parents=True, exist_ok=True)
             altair_saver.save(ax, str(save_path))
-            raise ValueError
+
+def overlap_main():
+    n_overlap, corr, p = get_n_overlap_heads('POS', 'cross', 'NER', k=40)
+    print(n_overlap, corr, p)
+
+if __name__ == '__main__':
+    overlap_main()

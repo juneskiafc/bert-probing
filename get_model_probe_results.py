@@ -420,7 +420,7 @@ def create_perlang_heatmap(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--device_id', type=int, default=0)
-    parser.add_argument('--finetuned_task', type=str, default='')
+    parser.add_argument('--finetuned_task', type=str, default='bert')
     parser.add_argument('--finetuned_setting', type=str, default='base')
 
     parser.add_argument('--probe_setting', type=str, default='cross')

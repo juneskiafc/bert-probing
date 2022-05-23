@@ -2,7 +2,6 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import shutil
 
 # for subtask in Path('head_probe_outputs/NLI').iterdir():
 #     for file in subtask.joinpath('results').iterdir():
