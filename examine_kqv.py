@@ -16,7 +16,7 @@ def save_all_kqv(model_ckpt, output_dir):
         _, model_class, _ = MODEL_CLASSES['bert']
         bert = model_class.from_pretrained('bert-base-multilingual-cased', cache_dir='.cache')
         state_dict = {f'bert.{k}':v for k, v in bert.state_dict().items()}
-        model_name = 'mBERT'
+        model_name = 'BERT'
     else:   
         model_name = Path(model_ckpt).parent.name
         state_dict = torch.load(model_ckpt)['state']
@@ -51,7 +51,7 @@ def save_all_kqv(model_ckpt, output_dir):
 def compare_kqv(model_name, output_dir):
     output_dir = Path(output_dir)
     finetuned_kqv_dir = output_dir.joinpath(f'{model_name}')
-    pretrained_kqv_dir = output_dir.joinpath('mBERT')
+    pretrained_kqv_dir = output_dir.joinpath('BERT')
     output_diffs_file = output_dir.joinpath(f'results/{model_name}_diffs.npy')
     output_diffs_file.parent.mkdir(parents=True, exist_ok=True)
 
