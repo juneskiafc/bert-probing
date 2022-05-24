@@ -1,4 +1,3 @@
-from multiprocessing.sharedctypes import Value
 from typing import List, Tuple
 
 from time import time
@@ -17,7 +16,6 @@ import numpy as np
 
 import torch
 from transformers import AutoTokenizer, BertForMaskedLM
-from transformers.data.datasets.language_modeling import LineByLineTextDataset
 import mxnet as mx
 from mxnet.gluon.data import SimpleDataset
 
@@ -106,10 +104,9 @@ def ids_to_masked(token_ids: np.ndarray, tokenizer) -> List[Tuple[np.ndarray, Li
 
     token_ids_masked_list = []
     for mask_idx in mask_indices:
-        tmp = token_ids[mask_idx]
-        token_ids[mask_idx] = mask_token
-        token_ids_masked_list.append((deepcopy(token_ids), mask_idx))
-        token_ids[mask_idx] = tmp
+        token_ids_masked = deepcopy(token_ids)
+        token_ids_masked[mask_idx] = mask_token
+        token_ids_masked_list.append((token_ids_masked, mask_idx, token_ids[mask_idx]))
 
     return token_ids_masked_list
 
@@ -137,8 +134,8 @@ def construct_dataset(data_file, tokenizer):
     for sent_idx, example in enumerate(data):
         tokenized = tokenizer(example, add_special_tokens=True, truncation=True, max_length=512)['input_ids']
         token_ids_masked_list = ids_to_masked(tokenized, tokenizer)
-        for token_ids, mask_idx in token_ids_masked_list:
-            sents_expanded.append((sent_idx, token_ids, len(token_ids), mask_idx, token_ids[mask_idx], 1))
+        for token_ids, mask_idx, masked_token in token_ids_masked_list:
+            sents_expanded.append((sent_idx, token_ids, len(token_ids), mask_idx, masked_token, 1))
 
     print(f"{sent_idx + 1} sentences loaded.")
     dataset = SimpleDataset(sents_expanded)
