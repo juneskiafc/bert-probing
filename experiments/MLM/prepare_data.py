@@ -48,6 +48,18 @@ def make_mlm_json(in_file, out_file):
 
     return out_file
 
+def combine_txts(files, out_file):
+    if out_file.is_file():
+        return
+    
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_file, 'w') as fw:
+        for file in files:
+            with open(file, 'r') as fr:
+                for line in fr:
+                    if line != '\n':
+                        fw.write(line)
+
 def make_mlm_data_from_raw_mnli(out_file):
     if Path(out_file).is_file():
         return
@@ -67,163 +79,190 @@ def make_mlm_data_from_raw_mnli(out_file):
                     fw.write(sent)
                     fw.write("\n")
 
-def make_mlm_data_from_raw_xnli_dev(setting, out_file, languages=None, separate_premise_hypothesis=True):
-    if Path(out_file).is_file():
-        return
-    
+def make_mlm_data_from_raw_xnli(split, out_dir, languages=None, separate_premise_hypothesis=True):
     raw_nli_data_path = Path('./experiments/NLI/data_raw')
-    xnli_dev_path = raw_nli_data_path.joinpath('xnli.dev.jsonl')
 
-    Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+    if split == 'train':
+        xnli_path = raw_nli_data_path.joinpath('xnli.dev.jsonl')
+    else:
+        xnli_path = raw_nli_data_path.joinpath('xnli.test.jsonl')
 
-    if setting is LingualSetting.CROSS:
-        languages = ['en']
+    out_files_per_lang = []
+    for lang in ['en', 'de', 'es', 'fr']:
+        languages = [lang]
+        out_file = out_dir.joinpath(f'{lang}', f'nli_{split}.txt')
+        out_files_per_lang.append(out_file)
 
-    with open(out_file, 'w', encoding='utf-8') as fw:
-        with jsonlines.open(xnli_dev_path) as fr:
-            for row in fr:
-                c1 = (languages is not None) and (row['language'] in languages)
-                c2 = languages is None
+        if not out_file.is_file():
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+        
+            with open(out_file, 'w', encoding='utf-8') as fw:
+                with jsonlines.open(xnli_path) as fr:
+                    for row in fr:
+                        c1 = (languages is not None) and (row['language'] in languages)
+                        c2 = languages is None
 
-                if c1 or c2:
-                    premise = row['sentence1']
-                    hypo = row['sentence2']
-                    
-                    if separate_premise_hypothesis:
-                        for sent in [premise, hypo]:
-                            fw.write(sent)
-                            fw.write("\n")
-                    else:
-                        sent = f'{premise} [SEP] {hypo}'
-                        fw.write(sent)
-                        fw.write('\n')
+                        if c1 or c2:
+                            premise = row['sentence1']
+                            hypo = row['sentence2']
+                            
+                            if separate_premise_hypothesis:
+                                for sent in [premise, hypo]:
+                                    fw.write(sent)
+                                    fw.write("\n")
+                            else:
+                                sent = f'{premise} [SEP] {hypo}'
+                                fw.write(sent)
+                                fw.write('\n')
+    
+    combine_txts(out_files_per_lang, out_dir.joinpath('multi', f'nli_{split}.txt'))
 
-def make_mlm_data_from_pos(out_file):
-    out_file.parent.mkdir(parents=True, exist_ok=True)
+def make_mlm_data_from_pos(split, out_dir):
     DATA_ROOT = Path('experiments/POS/data')
 
-    train_data_files = [
-        DATA_ROOT.joinpath('en/UD_English-EWT'),
-        DATA_ROOT.joinpath('fr/UD_French-GSD'),
-        DATA_ROOT.joinpath('de/UD_German-GSD'),
-        DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
-    ]
+    train_data_files = {
+        'en': DATA_ROOT.joinpath('en/UD_English-EWT'),
+        'fr': DATA_ROOT.joinpath('fr/UD_French-GSD'),
+        'de': DATA_ROOT.joinpath('de/UD_German-GSD'),
+        'es': DATA_ROOT.joinpath('es/UD_Spanish-AnCora')
+    }
     
-    with open(out_file, 'w', encoding='utf-8') as fw:
-        for data_dir in train_data_files:
-            train_file = list(data_dir.rglob('*train.conllu'))[0]
-            with open(train_file, 'r', encoding='utf-8') as f:
-                for i, tokenlist in enumerate(parse_incr(f)):
-                    fw.write(tokenlist.metadata['text'])
-                    fw.write('\n')
+    out_files_per_lang = []
+    for lang in ['en', 'es', 'de', 'fr']:
+        out_file = out_dir.joinpath(lang, f'pos_{split}.txt')
+        out_files_per_lang.append(out_file)
 
-def make_mlm_data_from_pawsx(setting, out_file, separate_premise_hypothesis=True):
-    if Path(out_file).is_file():
-        return
-    else:
-        Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+        if not out_file.is_file():
+            out_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(out_file, 'w', encoding='utf-8') as f:
-        for lang in ['en', 'fr', 'de', 'es']:
-            tmp_out_file = f'experiments/PAWSX/{lang}/pawsx_train_tmp.json'
-            df = Dataset.from_json(str(tmp_out_file))
+            with open(out_file, 'w', encoding='utf-8') as fw:
+                train_file = list(train_data_files[lang].rglob(f'*{split}.conllu'))[0]
+                with open(train_file, 'r', encoding='utf-8') as f:
+                    for i, tokenlist in enumerate(parse_incr(f)):
+                        fw.write(tokenlist.metadata['text'])
+                        fw.write('\n')
+    
+    combine_txts(out_files_per_lang, out_dir.joinpath('multi', f'pos_{split}.txt'))
 
-            premises = []
-            hypos = []
-            # n_lines = len(df)
-            # n_aug = int(n_lines * 0.5)
+def make_mlm_data_from_pawsx(split, out_dir, separate_premise_hypothesis=True):
+    out_files_per_lang = []
+    for lang in ['en', 'es', 'de', 'fr']:
+        out_file = out_dir.joinpath(lang, f'pawsx_{split}.txt')
+        out_files_per_lang.append(out_file)
 
-            for i, row in enumerate(df):
-                premise = row['sentence1']
-                hypo = row['sentence2']
-                if separate_premise_hypothesis:
-                    for sent in [premise, hypo]:
+        if not out_file.is_file():
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(out_file, 'w', encoding='utf-8') as f:
+                tmp_out_file = f'experiments/PAWSX/{lang}/pawsx_{split}_tmp.json'
+                df = Dataset.from_json(str(tmp_out_file))
+
+                premises = []
+                hypos = []
+                # n_lines = len(df)
+                # n_aug = int(n_lines * 0.5)
+
+                for i, row in enumerate(df):
+                    premise = row['sentence1']
+                    hypo = row['sentence2']
+                    if separate_premise_hypothesis:
+                        for sent in [premise, hypo]:
+                            f.write(sent)
+                            f.write("\n")
+                    else:
+                        sent = f'{premise} [SEP] {hypo}'
                         f.write(sent)
-                        f.write("\n")
-                else:
-                    sent = f'{premise} [SEP] {hypo}'
-                    f.write(sent)
-                    f.write('\n')
+                        f.write('\n')
+                    
+                    premises.append(premise)
+                    hypos.append(hypo)
                 
-                premises.append(premise)
-                hypos.append(hypo)
-            
-            # for i in range(n_aug):
-            #     premise_id = np.random.randint(0, n_lines)
-            #     hypo_id = np.random.randint(0, n_lines)
-            #     sent = f'{premises[premise_id]} [SEP] {hypos[hypo_id]}'
-            #     f.write(sent)
-            #     f.write('\n')
+                    # for i in range(n_aug):
+                    #     premise_id = np.random.randint(0, n_lines)
+                    #     hypo_id = np.random.randint(0, n_lines)
+                    #     sent = f'{premises[premise_id]} [SEP] {hypos[hypo_id]}'
+                    #     f.write(sent)
+                    #     f.write('\n')
+    combine_txts(out_files_per_lang, out_dir.joinpath('multi', f'pawsx_{split}.txt'))
 
-def make_mlm_data_from_marc(setting, out_file):
-    if Path(out_file).is_file():
-        return
 
-    tmp_out_file = f'experiments/MARC/{setting.name.lower()}/marc_train_tmp.json'
+def make_mlm_data_from_marc(split, out_dir):
+    out_files_per_lang = []
+    for lang in ['en', 'de', 'es', 'fr']:
+        out_file = out_dir.joinpath(lang, f'marc_{split}.txt')
+        out_files_per_lang.append(out_file)
 
-    df = Dataset.from_json(str(tmp_out_file))
-    with open(out_file, 'w', encoding='utf-8') as f:
-        for i, row in enumerate(df):
-            f.write(row['review_body'])
-            f.write('\n')
+        if not out_file.is_file():
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp_out_file = f'experiments/MARC/{lang}/marc_{split}_tmp.json'
 
-def make_mlm_data_from_ner(out_file):
-    if Path(out_file).is_file():
-        return
+            df = Dataset.from_json(str(tmp_out_file))
+            with open(out_file, 'w', encoding='utf-8') as f:
+                for i, row in enumerate(df):
+                    f.write(row['review_body'])
+                    f.write('\n')
+
+    combine_txts(out_files_per_lang, out_dir.joinpath('multi', f'marc_{split}.txt'))
+
+def make_mlm_data_from_ner(split, out_dir):
+    out_files_per_lang = []
+    for lang in ['en', 'de', 'es', 'fr']:
+        out_file = out_dir.joinpath(lang, f'ner_{split}.txt')
+        out_files_per_lang.append(out_file)
+
+        if not out_file.is_file():
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp_out_file = f'experiments/NER/{lang}/ner_{split}_tmp.json'
+
+            df = Dataset.from_json(str(tmp_out_file))
+            with open(out_file, 'w', encoding='utf-8') as f:
+                for i, row in enumerate(df):
+                    premise = ' '.join(row['tokens'])
+                    f.write(premise)
+                    f.write('\n')
     
-    tmp_out_file = 'experiments/NER/multi/ner_train_tmp.json'
+    combine_txts(out_files_per_lang, out_dir.joinpath('multi', f'ner_{split}.txt'))
 
-    df = Dataset.from_json(str(tmp_out_file))
-    with open(out_file, 'w', encoding='utf-8') as f:
-        for i, row in enumerate(df):
-            premise = ' '.join(row['tokens'])
-            f.write(premise)
-            f.write('\n')
-
-def make_mlm_data(task: Experiment, setting: LingualSetting, separate_multiple_sentences_per_example=True):
+def make_mlm_data(task: Experiment, separate_multiple_sentences_per_example=True):
     out_dir = Path('experiments/MLM').joinpath(task.name)
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    if task is Experiment.NLI:
-        make_mlm_data_from_raw_xnli_dev(
-            setting,
-            out_dir.joinpath(f'{setting.name.lower()}', 'nli_train.txt'),
-            separate_premise_hypothesis=separate_multiple_sentences_per_example)
-    
-    elif task is Experiment.POS:
-        make_mlm_data_from_pos(out_dir.joinpath(f'{setting.name.lower()}/pos_train.txt'))
+    for split in ['train', 'test']:
+        if task is Experiment.NLI:
+            make_mlm_data_from_raw_xnli(
+                split,
+                out_dir,
+                separate_premise_hypothesis=separate_multiple_sentences_per_example)
+            
+        elif task is Experiment.POS:
+            make_mlm_data_from_pos(split,out_dir)
 
-    elif task is Experiment.PAWSX:
-        make_mlm_data_from_pawsx(
-            setting,
-            out_dir.joinpath(f'{setting.name.lower()}/pawsx_train.txt'),
-            separate_premise_hypothesis=separate_multiple_sentences_per_example)
+        elif task is Experiment.PAWSX:
+            make_mlm_data_from_pawsx(
+                split,
+                out_dir,
+                separate_premise_hypothesis=separate_multiple_sentences_per_example)
 
-    elif task is Experiment.MARC:
-        make_mlm_data_from_marc(setting, out_dir.joinpath(f'{setting.name.lower()}/marc_train.txt'))
-    elif task is Experiment.NER:
-        make_mlm_data_from_ner(out_dir.joinpath(f'{setting.name.lower()}', 'ner_train.txt'))
+        elif task is Experiment.MARC:
+            make_mlm_data_from_marc(split, out_dir)
+
+        elif task is Experiment.NER:
+            make_mlm_data_from_ner(split, out_dir)
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--task', type=str, default='')
-    parser.add_argument('--setting', type=str, default='')
     parser.add_argument("--separate", action='store_true')
     args = parser.parse_args()
     
     if args.task == '':
         tasks = list(Experiment)
+        tasks.remove(Experiment.BERT)
     else:
         tasks = [Experiment[args.task.upper()]]
-
-    if args.setting == '':
-        settings = [LingualSetting.MULTI]
-    else:
-        settings = [LingualSetting[args.setting.upper()]]
     
     for task in tasks:
-        for setting in settings:
-            make_mlm_data(task, setting, args.separate)
+        make_mlm_data(task, args.separate)
 
 
             
