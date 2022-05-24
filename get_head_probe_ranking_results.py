@@ -1,14 +1,10 @@
 from pathlib import Path
 import shutil
-import altair as alt
 import matplotlib.pyplot as plt
 import pandas as pd
 import itertools
 import numpy as np
-from scipy.stats import spearmanr
 import matplotlib.colors as mcolors
-import altair_saver
-from copy import deepcopy
 
 def move_files():
     root = Path('head_probe_outputs')
@@ -33,13 +29,26 @@ def rank_heads():
     for upstream_task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
         for downstream_task in ['MARC', 'POS', 'NER', 'NLI', 'PAWSX']:
             for ls in ['cross', 'multi']:
-                path_to_data = Path(f'head_probe_ranking/{setting}/{upstream_task}/{downstream_task}/{ls}/{upstream_task.lower()}_{ls}-{downstream_task.lower()}-{setting}.csv')
+                path_to_data = Path('head_probe_ranking').joinpath(
+                    setting,
+                    upstream_task,
+                    downstream_task,
+                    ls,
+                    f'{upstream_task.lower()}_{ls}-{downstream_task.lower()}-{setting}.csv'
+                )
+                out_file = Path('head_probe_ranking').joinpath(
+                    setting,
+                    upstream_task,
+                    downstream_task,
+                    ls,
+                    f'{upstream_task.lower()}_{ls}-{downstream_task.lower()}-{setting}_layer_ranks.csv'
+                )
                 data = pd.read_csv(path_to_data, index_col=0).values
                 data = data.flatten()
                 layer_indices = np.array([i for i in range(12) for j in range(12)])
                 sorted_data_indices = np.argsort(data)[::-1]
                 sorted_layer_indices = pd.Series(layer_indices[sorted_data_indices])
-                sorted_layer_indices.to_csv(f'head_probe_ranking/{setting}/{upstream_task}/{downstream_task}/{ls}/{upstream_task.lower()}_{ls}-{downstream_task.lower()}-{setting}_layer_ranks.np')
+                sorted_layer_indices.to_csv(out_file)
 
 
 def preprocess_ranked_heads(setting):
@@ -172,8 +181,8 @@ def plot(setting='combined', self_probing=True, cross_probing=True):
     if self_probing:
         layer_dfs = organize_data_self_probing(data, ks, ds_tasks)
         _, super_ax = plot_groupby(layer_dfs, ks, models_to_plot, model_names_to_plot, colors, 'k=')
-        super_ax.set_xlabel("Models", labelpad=100)
-        super_ax.set_ylabel("Layer-wise distribution of top-k attention heads", labelpad=20)
+        super_ax.set_xlabel("Models", labelpad=100, fontweight='bold')
+        super_ax.set_ylabel("Layer-wise distribution of top-k attention heads", labelpad=20, fontweight='bold')
 
         out_file = f'head_probe_ranking/self_probing.pdf'
         plt.savefig(out_file, bbox_inches='tight')
@@ -185,12 +194,12 @@ def plot(setting='combined', self_probing=True, cross_probing=True):
             layer_dfs = organize_data_cross_probing(data, k, ds_tasks)
             _, super_ax = plot_groupby(layer_dfs, ds_tasks, models_to_plot, model_names_to_plot, colors, '')
 
-            super_ax.set_xlabel("Models", labelpad=100)
+            super_ax.set_xlabel("Models", labelpad=100, fontweight='bold')
             top_x_ax = super_ax.secondary_xaxis('top')
-            top_x_ax.set_xlabel('Task', labelpad=30)
+            top_x_ax.set_xlabel('Task', labelpad=30, fontweight='bold')
             top_x_ax.spines['top'].set_visible(False)
             top_x_ax.set_xticks([])
-            super_ax.set_ylabel(f"Layer-wise distribution of top-{k} attention heads", labelpad=20)
+            super_ax.set_ylabel(f"Layer-wise distribution of top-{k} attention heads", labelpad=20, fontweight='bold')
 
             out_file = f'head_probe_ranking/cross_probing_k={k}.pdf'
             plt.savefig(out_file, bbox_inches='tight')
@@ -220,7 +229,7 @@ def plot_groupby(
                 bar.set_label(str(layer+1))
             bottom += layer_dfs[layer].loc[groupby[i], models_to_plot]
 
-        ax_for_k.set_frame_on(True)
+        ax_for_k.set_frame_on(False)
         ax_for_k.get_yaxis().set_visible(False)
 
         ax_for_k.set_ybound(lower=0, upper=1)
@@ -238,6 +247,7 @@ def plot_groupby(
         handles[::-1], labels[::-1],
         loc='right',
         title='Layers',
+        bbox_to_anchor=(0.98, 0.5)
     )
 
     super_ax = global_fig.add_subplot(111, facecolor='none')
@@ -249,4 +259,6 @@ def plot_groupby(
     return global_fig, super_ax
 
 if __name__ == '__main__':
+    move_files()
+    rank_heads()
     plot()

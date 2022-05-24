@@ -1,7 +1,6 @@
 from pathlib import Path
 import csv
 import json
-from datasets.features.features import Value
 import jsonlines
 import sys
 sys.path.append('/home/june/mt-dnn/')
@@ -100,7 +99,8 @@ def make_mlm_data_from_raw_xnli_dev(setting, out_file, languages=None, separate_
                         fw.write('\n')
 
 def make_mlm_data_from_pos(out_file):
-    DATA_ROOT = Path('/home/june/mt-dnn/experiments/POS/data')
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    DATA_ROOT = Path('experiments/POS/data')
 
     train_data_files = [
         DATA_ROOT.joinpath('en/UD_English-EWT'),
@@ -111,7 +111,8 @@ def make_mlm_data_from_pos(out_file):
     
     with open(out_file, 'w', encoding='utf-8') as fw:
         for data_dir in train_data_files:
-            with open(data_dir.joinpath(f'train.conllu'), 'r', encoding='utf-8') as f:
+            train_file = list(data_dir.rglob('*train.conllu'))[0]
+            with open(train_file, 'r', encoding='utf-8') as f:
                 for i, tokenlist in enumerate(parse_incr(f)):
                     fw.write(tokenlist.metadata['text'])
                     fw.write('\n')
@@ -129,8 +130,8 @@ def make_mlm_data_from_pawsx(setting, out_file, separate_premise_hypothesis=True
 
             premises = []
             hypos = []
-            n_lines = len(df)
-            n_aug = int(n_lines * 0.5)
+            # n_lines = len(df)
+            # n_aug = int(n_lines * 0.5)
 
             for i, row in enumerate(df):
                 premise = row['sentence1']
@@ -147,12 +148,12 @@ def make_mlm_data_from_pawsx(setting, out_file, separate_premise_hypothesis=True
                 premises.append(premise)
                 hypos.append(hypo)
             
-            for i in range(n_aug):
-                premise_id = np.random.randint(0, n_lines)
-                hypo_id = np.random.randint(0, n_lines)
-                sent = f'{premises[premise_id]} [SEP] {hypos[hypo_id]}'
-                f.write(sent)
-                f.write('\n')
+            # for i in range(n_aug):
+            #     premise_id = np.random.randint(0, n_lines)
+            #     hypo_id = np.random.randint(0, n_lines)
+            #     sent = f'{premises[premise_id]} [SEP] {hypos[hypo_id]}'
+            #     f.write(sent)
+            #     f.write('\n')
 
 def make_mlm_data_from_marc(setting, out_file):
     if Path(out_file).is_file():
@@ -186,7 +187,7 @@ def make_mlm_data(task: Experiment, setting: LingualSetting, separate_multiple_s
     if task is Experiment.NLI:
         make_mlm_data_from_raw_xnli_dev(
             setting,
-            out_dir.joinpath('multi/nli_train.txt'),
+            out_dir.joinpath(f'{setting.name.lower()}', 'nli_train.txt'),
             separate_premise_hypothesis=separate_multiple_sentences_per_example)
     
     elif task is Experiment.POS:
@@ -195,13 +196,13 @@ def make_mlm_data(task: Experiment, setting: LingualSetting, separate_multiple_s
     elif task is Experiment.PAWSX:
         make_mlm_data_from_pawsx(
             setting,
-            out_dir.joinpath(f'{setting.name.lower()}/pawsx_phcomb_aug_train.txt'),
+            out_dir.joinpath(f'{setting.name.lower()}/pawsx_train.txt'),
             separate_premise_hypothesis=separate_multiple_sentences_per_example)
 
     elif task is Experiment.MARC:
         make_mlm_data_from_marc(setting, out_dir.joinpath(f'{setting.name.lower()}/marc_train.txt'))
     elif task is Experiment.NER:
-        make_mlm_data_from_ner(out_dir.joinpath('4lang_train.txt'))
+        make_mlm_data_from_ner(out_dir.joinpath(f'{setting.name.lower()}', 'ner_train.txt'))
 
 if __name__ == '__main__':
     parser = ArgumentParser()

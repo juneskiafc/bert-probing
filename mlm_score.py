@@ -58,7 +58,7 @@ def create_heatmap(
     fig = heatmap.get_figure()
     fig.savefig(out_file, bbox_inches='tight')
 
-def load_data_file(path, maxlen=512):
+def load_data_file(path, maxlen=512, sep_token=102, cls_token=101):
     with open(path, 'r', encoding='utf-8') as reader:
         data = []
         cnt = 0
@@ -66,8 +66,25 @@ def load_data_file(path, maxlen=512):
         for line in reader:
             sample = json.loads(line)
             cnt += 1
-            if len(sample['token_id']) < maxlen:
-                data.append(sample)
+            token_ids = sample['token_id']
+            if len(token_ids) < maxlen:
+                samples = []
+                premise_and_hypo = False
+                start_idx = 0
+                for i, tok in enumerate(token_ids):
+                    if tok == sep_token:
+                        if i != len(token_ids) - 1:
+                            premise_and_hypo = True
+                            samples.append(token_ids[start_idx:i+1])
+                            start_idx = i+1
+                        else:
+                            sample = token_ids[start_idx:len(token_ids)]
+                            if premise_and_hypo:
+                                sample = cls_token + sample
+                            samples.append(sample)
+
+                for sample in samples:
+                    data.append(sample)
     
     return data
 
@@ -75,19 +92,22 @@ def ids_to_masked(token_ids: np.ndarray, tokenizer) -> List[Tuple[np.ndarray, Li
     # every word can be masked
     # We don't mask the [CLS], [SEP] for now for PLL
     # 101 is [CLS], 102 is [SEP]
+    sep_token = tokenizer.convert_tokens_to_ids(tokenizer.sep_token)
+    cls_token = tokenizer.convert_tokens_to_ids(tokenizer.cls_token)
+    mask_token = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
+
     mask_indices = []
     for mask_pos in range(len(token_ids)):
-        if token_ids[mask_pos] != 101 and token_ids[mask_pos] != 102:
+        if token_ids[mask_pos] != cls_token and token_ids[mask_pos] != sep_token:
             mask_indices.append(mask_pos)
 
-    # get the id for [MASK]
-    mask_token_id = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
-
     token_ids_masked_list = []
-    for mask_set in mask_indices:
+    for mask_idx in mask_indices:
+        tmp = token_ids_masked[mask_idx]
         token_ids_masked = token_ids.copy()
-        token_ids_masked[mask_set] = mask_token_id
-        token_ids_masked_list.append((token_ids_masked, mask_set))
+        token_ids[mask_idx] = mask_token
+        token_ids_masked_list.append((token_ids, mask_idx))
+        token_ids[mask_idx] = tmp
 
     return token_ids_masked_list
 
@@ -110,10 +130,9 @@ def construct_dataset(data_file, tokenizer):
 
     sents_expanded = []
     for sent_idx, example in enumerate(data):
-        token_ids = example['token_id']
-        ids_masked = ids_to_masked(token_ids, tokenizer)
-        for ids, mask_set in ids_masked:
-            sents_expanded.append((sent_idx, ids, len(token_ids), mask_set, token_ids[mask_set], 1))
+        token_ids_masked_list = ids_to_masked(example['token_id'], tokenizer)
+        for token_ids, mask_idx in token_ids_masked_list:
+            sents_expanded.append((sent_idx, token_ids, len(token_ids), mask_idx, token_ids[mask_idx], 1))
 
     print(f"{sent_idx + 1} sentences loaded.")
     dataset = SimpleDataset(sents_expanded)
@@ -220,6 +239,7 @@ def main(
         if model_ckpt != '':
             print(f'loading ckpt from {model_ckpt}.')
             state_dict = torch.load(model_ckpt)
+            
             if not is_huggingface_ckpt:
                 if 'optimizer' in state_dict:
                     del state_dict['optimizer']
