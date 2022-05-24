@@ -160,7 +160,7 @@ def plot(setting='combined', self_probing=True, cross_probing=True):
         'ytick.labelsize': font_size,
         'axes.titlesize': font_size,
         'legend.fontsize': font_size,
-        "legend.title_fontsize": font_size
+        "legend.title_fontsize": font_size,
     }
     plt.rcParams.update(parameters)
     colors = get_colors_as_hex()
@@ -214,7 +214,7 @@ def plot_groupby(
     colors,
     groupby_prefix,
 ):
-    global_fig, axes = plt.subplots(1, len(groupby), sharey=True, figsize=(20, 10))
+    global_fig, axes = plt.subplots(1, len(groupby), sharey=True, figsize=(20, 7))
     
     for i, ax_for_k in enumerate(axes):
         bottom = 0
@@ -247,7 +247,9 @@ def plot_groupby(
         handles[::-1], labels[::-1],
         loc='right',
         title='Layers',
-        bbox_to_anchor=(0.98, 0.5)
+        bbox_to_anchor=(0.98, 0.5),
+        title_fontproperties={'weight': 'bold'},
+        frameon=False
     )
 
     super_ax = global_fig.add_subplot(111, facecolor='none')
