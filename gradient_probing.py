@@ -177,7 +177,7 @@ def prediction_gradient(
     )
     config['gradient_probe'] = True
     config['gradient_probe_n_classes'] = task_def_for_data.n_class
-    model = MTDNNModel(config, devices=[device_id])
+    model = MTDNNModel(config, devices=[f'cuda:{device_id}'])
 
     state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
     state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
@@ -197,7 +197,7 @@ def prediction_gradient(
 
         for i, (batch_meta, batch_data) in enumerate(dataloader):
             batch_meta, batch_data = Collater.patch_data(
-                torch.device(device_id),
+                torch.device(f'cuda:{device_id}'),
                 batch_meta,
                 batch_data)
             model.get_update_gradients(batch_meta, batch_data)

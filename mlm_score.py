@@ -148,7 +148,7 @@ def mlm_score(
     scores_out_file,
     device_id):
 
-    if Path(scores_out_file).is_file() and False:
+    if Path(scores_out_file).is_file():
         print(f'PLL scores exists at {scores_out_file}')
         with open(scores_out_file, 'rb') as f:
             scores = pickle.load(f)
@@ -296,6 +296,7 @@ def main(
 
             for k, v in n_words.items():
                 print(f'{k}: {v}')
+            
             print(f'combined: {n_combined_words}')
 
             for i, dataset in enumerate(datasets):
