@@ -147,7 +147,7 @@ def prediction_gradient(
     device_id,
     save_dir,
     batch_size=8
-):
+):  
     task_def_path_for_data = Path('experiments').joinpath(downstream_task, 'task_def.yaml')
     task_def_for_data = TaskDefs(task_def_path_for_data).get_task_def(downstream_task.lower())
     task_def_path_for_model = Path('experiments').joinpath(finetuned_task, 'task_def.yaml')
@@ -175,7 +175,13 @@ def prediction_gradient(
         task_def_path_for_model,
         device_id
     )
-    model = MTDNNModel(config, state_dict=state_dict, devices=[device_id])
+    config['gradient_probe'] = True
+    config['gradient_probe_n_classes'] = task_def_for_data.n_class
+    model = MTDNNModel(config, devices=[device_id])
+
+    state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
+    state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
+    model.load_state_dict(state_dict)
 
     save_path = save_dir.joinpath(
         finetuned_task,
