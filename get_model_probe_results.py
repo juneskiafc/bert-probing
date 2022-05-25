@@ -1,7 +1,6 @@
 from typing import List, Union, Tuple
 import argparse
 from pathlib import Path
-import os
 
 import numpy as np
 import pandas as pd
@@ -117,7 +116,7 @@ def evaluate_model_probe(
         state_dict_for_head = Path(model_ckpt)
 
     print(f'loading from {state_dict_for_head}')
-    state_dict_for_head = torch.load(state_dict_for_head, map_location=f'cuda:{device_id}')['state']
+    state_dict_for_head = torch.load(state_dict_for_head, map_location=f'cuda:{device_id}')
 
     # then attach the probing layer
     model.attach_model_probe(task_def.n_class, sequence=sequence)
@@ -420,7 +419,7 @@ def create_perlang_heatmap(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--device_id', type=int, default=0)
-    parser.add_argument('--finetuned_task', type=str, default='')
+    parser.add_argument('--finetuned_task', type=str, default='bert')
     parser.add_argument('--finetuned_setting', type=str, default='base')
 
     parser.add_argument('--probe_setting', type=str, default='cross')

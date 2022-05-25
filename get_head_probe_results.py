@@ -1,11 +1,9 @@
-from email.policy import default
 import pickle
 from typing import List, Union, Tuple, Dict
 import argparse
 from collections import defaultdict
 from pathlib import Path
 import os
-from unittest.loader import VALID_MODULE_NAME
 
 import numpy as np
 import pandas as pd
@@ -60,7 +58,7 @@ def create_heatmap(
     heatmap = sns.heatmap(
         data_df.to_numpy(),
         cbar=False,
-        annot=True,
+        annot=False,
         annot_kws=annot_kws,
         fmt=".2f",
         cmap=cmap)
@@ -599,23 +597,22 @@ def get_final_probing_result(
         base_csv_path = Path(base_csv_path)
         result_csv_path = Path(result_csv_path)
 
-        if not (out_file_root.with_suffix('.pdf').is_file() and out_file_root.with_suffix('.csv').is_file()):
-            out_file_root.parent.mkdir(parents=True, exist_ok=True)
+        out_file_root.parent.mkdir(parents=True, exist_ok=True)
 
-            base_df = pd.read_csv(base_csv_path.with_suffix('.csv'), index_col=0)
-            setting_df = pd.read_csv(result_csv_path.with_suffix('.csv'), index_col=0)
+        base_df = pd.read_csv(base_csv_path.with_suffix('.csv'), index_col=0)
+        setting_df = pd.read_csv(result_csv_path.with_suffix('.csv'), index_col=0)
 
-            diff = setting_df - base_df
-            diff.to_csv(out_file_root.with_suffix('.csv'))
-            create_heatmap(
-                data_df=diff,
-                row_labels=list(range(1, 13)),
-                column_labels=list(range(1, 13)),
-                xaxlabel='heads',
-                yaxlabel='layers',
-                invert_y=True,
-                fontsize=25,
-                out_file=out_file_root.with_suffix('.pdf'))
+        diff = setting_df - base_df
+        diff.to_csv(out_file_root.with_suffix('.csv'))
+        create_heatmap(
+            data_df=diff,
+            row_labels=list(range(1, 13)),
+            column_labels=list(range(1, 13)),
+            xaxlabel='heads',
+            yaxlabel='layers',
+            invert_y=True,
+            fontsize=35,
+            out_file=out_file_root.with_suffix('.pdf'))
         
         print('done.')
 

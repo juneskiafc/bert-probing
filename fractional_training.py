@@ -2,7 +2,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import subprocess
-import transformers
 
 def evaluate_trained_models():
     for seed in range(3):

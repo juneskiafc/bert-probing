@@ -5,6 +5,8 @@ from experiments.exp_def import (
     Experiment,
     TaskDefs,
 )
+import torch
+from copy import deepcopy
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--finetuned_task', type=str, default='')
@@ -51,5 +53,16 @@ for downstream_task in tasks:
         cmd += ' --model_probe_sequence'
 
     process = subprocess.run(cmd.split(' '))
+
+    # trim checkpoint
+    state_dict_path = list(Path('checkpoint').joinpath(exp_name).rglob("*.pt"))[0]
+    state_dict = torch.load(state_dict_path)
+
+    state_dict_to_save = {}
+    for k, v in state_dict['state'].items():
+        if 'model_probe' in k:
+            state_dict_to_save[k] = v
+    
+    torch.save(state_dict_to_save, state_dict_path)
 
 

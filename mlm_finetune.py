@@ -86,7 +86,7 @@ class DataTrainingArguments:
     """
 
     train_data_file: Optional[str] = field(
-        default=None, metadata={"help": "The input training data file (a text file)."}
+        default=None, metadata={"help": "The input training data file (a text file). default should be cross lingual training set"}
     )
     train_data_files: Optional[str] = field(
         default=None,
@@ -111,19 +111,18 @@ class DataTrainingArguments:
         default=True,
         metadata={"help": "Whether distinct lines of text in the dataset are to be handled as distinct sequences."},
     )
-
     mlm: bool = field(
         default=True, metadata={"help": "Train with masked-language modeling loss instead of language modeling."}
     )
-    whole_word_mask: bool = field(default=False, metadata={"help": "Whether ot not to use whole word mask."})
+    whole_word_mask: bool = field(
+        default=False, metadata={"help": "Whether ot not to use whole word mask."}
+    )
     mlm_probability: float = field(
         default=0.15, metadata={"help": "Ratio of tokens to mask for masked language modeling loss"}
     )
     plm_probability: float = field(
         default=1 / 6,
-        metadata={
-            "help": "Ratio of length of a span of masked tokens to surrounding context length for permutation language modeling."
-        },
+        metadata={"help": "Ratio of length of a span of masked tokens to surrounding context length for permutation language modeling."},
     )
     max_span_length: int = field(
         default=5, metadata={"help": "Maximum length of a span of masked tokens for permutation language modeling."}
@@ -139,20 +138,16 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
+    device_id: int = field(default=0)
 
-def get_dataset(
-    args: DataTrainingArguments,
-    tokenizer: PreTrainedTokenizer,
-    evaluate: bool = False,
-    cache_dir: Optional[str] = None,
-    ):
-    def _dataset(file_path, ref_path=None):
+def get_dataset(args: DataTrainingArguments, tokenizer: PreTrainedTokenizer):
+    def _dataset(file_path):
         return LineByLineTextDataset(
             tokenizer=tokenizer,
             file_path=file_path,
             block_size=args.block_size)
 
-    return _dataset(args.train_data_file, args.train_ref_file)
+    return _dataset(args.train_data_file)
 
 
 def main():
@@ -164,7 +159,7 @@ def main():
     training_args.disable_tqdm = True
     training_args.num_train_epochs = 2
     training_args.do_train = True
-    training_args.output_dir = training_args.output_dir + f"/mlm_finetuned/huggingface/{training_args.run_name}/"
+    training_args.output_dir = training_args.output_dir + f"/mlm_finetuned/{training_args.run_name}/"
 
     if data_args.eval_data_file is None and training_args.do_eval:
         raise ValueError(
@@ -230,8 +225,10 @@ def main():
             'scoring_list.0.weight',
             'scoring_list.0.bias',
             'pooler.dense.weight',
-            'pooler.dense.bias']:
-            del mtdnn[param]
+            'pooler.dense.bias'
+        ]:
+            if param in mtdnn:
+                del mtdnn[param]
         
         # init MLM head with pretrained BERT params
         for param in [
@@ -260,12 +257,7 @@ def main():
 
     # Get datasets
     # only train
-    train_dataset = (
-        get_dataset(
-            data_args,
-            tokenizer,
-            model_args.cache_dir) if training_args.do_train else None
-    )
+    train_dataset = (get_dataset(data_args,tokenizer))
 
     data_collator = DataCollatorForLanguageModeling(
         tokenizer=tokenizer,
@@ -290,7 +282,6 @@ def main():
             else None
         )
         trainer.train(model_path=model_path)
-        trainer.save_model()
 
 if __name__ == "__main__":
     main()

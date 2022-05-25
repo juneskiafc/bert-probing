@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-rhos = pd.read_csv('gradient_probe_outputs/correlations/rhos.csv', index_col=0)
+rhos = pd.read_csv('gradient_probing_outputs/correlations/rhos.csv', index_col=0)
 new_rhos = pd.DataFrame(np.zeros((5, 10)))
 new_rhos.index = ['POS', 'NER', 'PI', 'SA', 'XNLI']
 new_rhos_cols = []

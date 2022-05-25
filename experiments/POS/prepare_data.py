@@ -5,6 +5,7 @@ import csv
 import numpy as np
 from conllu import parse_incr
 import shutil
+import subprocess
 
 DATA_ROOT = Path('/home/june/mt-dnn/experiments/POS/data')
 DATASETS = {
@@ -70,13 +71,12 @@ def _prepare_data(dataset_dirs, out_dir):
         df = pd.concat(data, axis=1)
         df.to_csv(out_file, sep='\t', header=None)
 
-def subsample_and_combine(foreign_dataset, ps):
+def subsample_and_combine(foreign_dataset, ps, seeds):
     fieldnames = ['id', 'label', 'premise']
     with open(f'experiments/POS/cross/pos_train.tsv', 'r') as f:
         reader = csv.DictReader(f, delimiter='\t', fieldnames=fieldnames)
         mnli_rows = [row for row in reader]
 
-    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
     for i, seed_collection in enumerate(seeds):
         with open(foreign_dataset, 'r') as fr:
             reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
@@ -160,11 +160,25 @@ def make_foreign():
 
 def make_fractional_training():
     foreign_dataset = 'experiments/POS/foreign/pos_train.tsv'
-    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
+    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8], seeds)
+
+def prepro_wrapper_for_foreign():
+    for i in range(3):
+        for frac in [0.2, 0.4, 0.6, 0.8]:
+            dataset_name = f'POS/foreign_{frac}_{i}'
+            task_def = 'experiments/POS/task_def.yaml'
+
+            cmd = f'python prepro_std.py --dataset {dataset_name} --task_def {task_def}'
+            split_cmd = cmd.split(" ")
+            subprocess.run(split_cmd)
 
 if __name__ == '__main__':
-    make_per_language()
-    make_multilingual()
-    make_crosslingual()
-    make_foreign()
+    # make_per_language()
+    # make_multilingual()
+    # make_crosslingual()
+    # make_foreign()
+
+    # make_fractional_training()
+    prepro_wrapper_for_foreign()
             

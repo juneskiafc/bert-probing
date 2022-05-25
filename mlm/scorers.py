@@ -735,13 +735,11 @@ class MLMScorerPT(BaseScorer):
                     valid_length = torch.tensor(valid_length)
                     masked_positions = torch.tensor(masked_positions).reshape(-1, 1)
                     token_masked_ids = torch.tensor(token_masked_ids).reshape(-1)
-                    # token_type_ids = torch.tensor(token_type_ids)
 
                     token_ids = token_ids.to(ctx)
                     valid_length = valid_length.to(ctx)
                     masked_positions = masked_positions.to(ctx)
                     token_masked_ids = token_masked_ids.to(ctx)
-                    # token_type_ids = token_type_ids.to(ctx)
 
                     split_size = token_ids.shape[0]
 

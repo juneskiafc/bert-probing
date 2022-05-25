@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 from time import time
+from copy import deepcopy
 from argparse import ArgumentParser 
 from pathlib import Path
 from collections import Counter
@@ -58,7 +59,7 @@ def create_heatmap(
     fig = heatmap.get_figure()
     fig.savefig(out_file, bbox_inches='tight')
 
-def load_data_file(path, maxlen=512):
+def load_data_file(path, maxlen=512, sep_token=102, cls_token=101):
     with open(path, 'r', encoding='utf-8') as reader:
         data = []
         cnt = 0
@@ -66,8 +67,25 @@ def load_data_file(path, maxlen=512):
         for line in reader:
             sample = json.loads(line)
             cnt += 1
-            if len(sample['token_id']) < maxlen:
-                data.append(sample)
+            token_ids = sample['token_id']
+            if len(token_ids) < maxlen:
+                samples = []
+                premise_and_hypo = False
+                start_idx = 0
+                for i, tok in enumerate(token_ids):
+                    if tok == sep_token:
+                        if i != len(token_ids) - 1:
+                            premise_and_hypo = True
+                            samples.append(token_ids[start_idx:i+1])
+                            start_idx = i+1
+                        else:
+                            sample = token_ids[start_idx:len(token_ids)]
+                            if premise_and_hypo:
+                                sample = cls_token + sample
+                            samples.append(sample)
+
+                for sample in samples:
+                    data.append(sample)
     
     return data
 
@@ -75,19 +93,20 @@ def ids_to_masked(token_ids: np.ndarray, tokenizer) -> List[Tuple[np.ndarray, Li
     # every word can be masked
     # We don't mask the [CLS], [SEP] for now for PLL
     # 101 is [CLS], 102 is [SEP]
+    sep_token = tokenizer.convert_tokens_to_ids(tokenizer.sep_token)
+    cls_token = tokenizer.convert_tokens_to_ids(tokenizer.cls_token)
+    mask_token = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
+
     mask_indices = []
     for mask_pos in range(len(token_ids)):
-        if token_ids[mask_pos] != 101 and token_ids[mask_pos] != 102:
+        if token_ids[mask_pos] != cls_token and token_ids[mask_pos] != sep_token:
             mask_indices.append(mask_pos)
 
-    # get the id for [MASK]
-    mask_token_id = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
-
     token_ids_masked_list = []
-    for mask_set in mask_indices:
-        token_ids_masked = token_ids.copy()
-        token_ids_masked[mask_set] = mask_token_id
-        token_ids_masked_list.append((token_ids_masked, mask_set))
+    for mask_idx in mask_indices:
+        token_ids_masked = deepcopy(token_ids)
+        token_ids_masked[mask_idx] = mask_token
+        token_ids_masked_list.append((token_ids_masked, mask_idx, token_ids[mask_idx]))
 
     return token_ids_masked_list
 
@@ -105,15 +124,18 @@ def get_true_tok_lens_from_dataset(dataset):
     return sum(true_tok_lens)
 
 def construct_dataset(data_file, tokenizer):
+    # return LineByLineTextDataset(tokenizer, data_file, 512)
+
     print('loading data and constructing dataset...')
-    data = load_data_file(data_file)
+    with open(data_file, 'r') as fr:
+        data = fr.readlines()
 
     sents_expanded = []
     for sent_idx, example in enumerate(data):
-        token_ids = example['token_id']
-        ids_masked = ids_to_masked(token_ids, tokenizer)
-        for ids, mask_set in ids_masked:
-            sents_expanded.append((sent_idx, ids, len(token_ids), mask_set, token_ids[mask_set], 1))
+        tokenized = tokenizer(example, add_special_tokens=True, truncation=True, max_length=512)['input_ids']
+        token_ids_masked_list = ids_to_masked(tokenized, tokenizer)
+        for token_ids, mask_idx, masked_token in token_ids_masked_list:
+            sents_expanded.append((sent_idx, token_ids, len(token_ids), mask_idx, masked_token, 1))
 
     print(f"{sent_idx + 1} sentences loaded.")
     dataset = SimpleDataset(sents_expanded)
@@ -137,8 +159,8 @@ def mlm_score(
 
     else:
         tokenizer = AutoTokenizer.from_pretrained('bert-base-multilingual-cased')
-        vocab = tokenizer.vocab
         model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased')
+        vocab = tokenizer.vocab
 
         if state_dict is not None:
             if not is_huggingface_ckpt and "cls.predictions.bias" not in state_dict:
@@ -195,7 +217,7 @@ def main(
     do_combined=True,
     device_id=0):
 
-    data_root = Path(f'experiments/{task.name}')
+    data_root = Path(f'experiments/MLM/{task.name}')
     mlm_scores_out_file = Path(f'mlm_scores/{task.name}/{model_name}/scores.npy')
     n_words_path = Path(f'mlm_scores/{task.name}/n_words.csv')
 
@@ -220,6 +242,7 @@ def main(
         if model_ckpt != '':
             print(f'loading ckpt from {model_ckpt}.')
             state_dict = torch.load(model_ckpt)
+            
             if not is_huggingface_ckpt:
                 if 'optimizer' in state_dict:
                     del state_dict['optimizer']
@@ -234,7 +257,8 @@ def main(
                         "bert.pooler.dense.weight",
                         "bert.pooler.dense.bias"
                     ]:
-                        del state_dict[param]
+                        if param in state_dict:
+                            del state_dict[param]
         else:
             state_dict = None
 
@@ -242,7 +266,7 @@ def main(
             for i, dataset in enumerate(datasets):
                 print(f'Evaluating mlm for {model_name} on {dataset} [{task.name}].')
 
-                data_file = data_root.joinpath(f'{dataset}/bert-base-multilingual-cased/{task.name.lower()}_test.json')
+                data_file = data_root.joinpath(f'{dataset}/{task.name.lower()}_test.txt')
                 scores_for_dataset_out_file = Path(f'mlm_scores/{task.name}').joinpath(model_name, f'{dataset}_scores.pkl')
 
                 start = time()
@@ -272,6 +296,7 @@ def main(
 
             for k, v in n_words.items():
                 print(f'{k}: {v}')
+            
             print(f'combined: {n_combined_words}')
 
             for i, dataset in enumerate(datasets):
@@ -327,71 +352,56 @@ if __name__ == '__main__':
 
     task = Experiment[args.task]
     base_model_name = "bert-base-multilingual-cased"
+    
+    if args.model_ckpt != '':
+        model_name = Path(args.model_ckpt).parent
+        if args.huggingface_ckpt:
+            model_name = model_name.parent
+        model_name = model_name.name
+    else:
+        model_name = 'BERT'
 
     if task is Experiment['NLI']:
-        # datasets = [
-        #     'ar',
-        #     'bg',
-        #     'de',
-        #     'el',
-        #     'es',
-        #     'fr',
-        #     'hi',
-        #     'ru',
-        #     'sw',
-        #     'th',
-        #     'tr',
-        #     'ur',
-        #     'vi',
-        #     'zh',
-        #     'en'
-        # ]
-        datasets = ['foreign']
-        main(
-            task,
-            'NLI',
-            args.model_ckpt,
-            args.huggingface_ckpt,
-            datasets,
-            device_id=args.device_id
-        )
-
-        # datasets = [
-        #     'de',
-        #     'es',
-        #     'fr',
-        #     'en'
-        # ]
-        # main(
-        #     task, 
-        #     'NLI_EN-FR-DE-ES',
-        #     checkpoint_dir.joinpath('4lang/pytorch_model.bin'),
-        #     args.huggingface_ckpt,
-        #     datasets,
-        #     device_id=args.device_id
-        # )
-        
-    else: 
-        if args.model_ckpt != '':
-            model_name = Path(args.model_ckpt).parent.name
-        else:
-            model_name = 'mBERT'
-        langs = ['foreign_0', 'foreign_1', 'foreign_2', 'foreign_3']
-        # langs = ['en', 'es', 'fr', 'de']
-        # langs = [
-        #     'en',
-        #     'es_0',
-        #     'es_1',
-        #     'fr_0',
-        #     'fr_1',
-        #     'de_0',
-        #     'de_1'
-        # ]
-        main(
-            task,
-            model_name,
-            args.model_ckpt,
-            args.huggingface_ckpt,
-            langs,
-            device_id=args.device_id
-        )
+        langs = [
+            # 'ar',
+            # 'bg',
+            # 'el',
+            # 'hi',
+            # 'ru',
+            # 'sw',
+            # 'th',
+            # 'tr',
+            # 'ur',
+            # 'vi',
+            # 'zh',
+            'en',
+            'de',
+            'es',
+            'fr',
+            # 'foreign'
+        ]
+    else:         
+        langs = ['en', 'es', 'fr', 'de']
+        # if task is Experiment.MARC:
+        #     langs = [
+        #         'en_0',
+        #         'en_1',
+        #         'es_0',
+        #         'es_1',
+        #         'fr_0',
+        #         'fr_1',
+        #         'de_0',
+        #         'de_1',
+        #         # 'foreign_0',
+        #         # 'foreign_1',
+        #         # 'foreign_2',
+        #         # 'foreign_3'
+        #     ]
+    main(
+        task,
+        model_name,
+        args.model_ckpt,
+        args.huggingface_ckpt,
+        langs,
+        device_id=args.device_id
+    )
