@@ -2,6 +2,7 @@ import argparse
 import subprocess
 from pathlib import Path
 import json
+import yaml
 
 def multi_dataset_prepro_wrapper(datasets):
     for dataset in datasets:
@@ -47,6 +48,16 @@ def data_distrib(datasets, langs):
                     print(f'{dataset}/{lang_dir.name} test: {n_lines}')
                 
                 print('\n')
+
+def merge_yaml(yamls, out_file):
+    master = {}
+    for y in yamls:
+        with open(y, 'r') as f:
+            data = yaml.load(f, Loader=yaml.Loader)
+            master.update(data)
+
+    with open(out_file, 'w') as f:
+        yaml.dump(master, f)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

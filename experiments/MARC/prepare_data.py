@@ -79,7 +79,7 @@ def prepare_finetune_data():
 
         _prepare_data(train_langs, test_langs, out_dir)
 
-def subsample_and_combine(foreign_dataset, ps):
+def subsample_and_combine(foreign_dataset, ps, seeds):
     def read_rows(filename):
         with open(filename, 'r') as f:
             rows = []
@@ -92,7 +92,6 @@ def subsample_and_combine(foreign_dataset, ps):
     fieldnames = ['id', 'label', 'premise']
     mnli_rows = read_rows('experiments/MARC/cross/marc_train.tsv')
 
-    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
     rows = read_rows(foreign_dataset)
     for i, seed_collection in enumerate(seeds):
         for p_idx, p in enumerate(ps):
@@ -114,12 +113,37 @@ def subsample_and_combine(foreign_dataset, ps):
                 for r in mnli_rows:
                     writer.writerow(r)
 
-if __name__ == '__main__':
+def make_per_language():
+    for lang in ['en', 'es', 'fr', 'de']:
+        out_dir = Path(f'experiments/MARC/{lang}')
+        _prepare_data([lang], [lang], out_dir)
+
+def make_multilingual():
+    langs = ['en', 'es', 'fr', 'de']
+    out_dir = Path(f'experiments/MARC/multi')
+    _prepare_data(langs, langs, out_dir)
+
+def make_crosslingual():
+    out_dir = Path(f'experiments/MARC/cross')
+    _prepare_data(['en'], ['en'], out_dir)
+
+def make_foreign():
     langs = ['es', 'fr', 'de']
-    out_dir = Path(f'experiments/MARC/foreign')
-    _prepare_data(langs, None, out_dir)
+    out_dir = Path(f'experiments/MARC/multi')
+    _prepare_data(langs, langs, out_dir)
+
+def make_fractional():
     foreign_dataset = 'experiments/MARC/foreign/marc_train.tsv'
-    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
+    multilingual_fractions = [0.2, 0.4, 0.6, 0.8]
+    subsample_and_combine(foreign_dataset, multilingual_fractions, seeds)
+
+if __name__ == '__main__':
+    # make_per_language()
+    # make_multilingual()
+    # make_crosslingual()
+    # make_foreign()
+    make_fractional()
 
     # langs = ['es', 'fr', 'de']
     # out_dir = Path(f'experiments/MARC/foreign')

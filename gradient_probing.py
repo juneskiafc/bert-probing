@@ -30,7 +30,7 @@ def max_norm(matrix):
 def raw_to_final_form(raw_attention_gradients):
     # layer norm
     for layer in range(12):
-        raw_attention_gradients[layer, :] = max_norm(raw_attention_gradients[layer, :])
+        raw_attention_gradients[:, layer, :] = max_norm(raw_attention_gradients[:, layer, :])
     
     # sum across training instances and global norm
     attention_gradients = torch.sum(raw_attention_gradients, dim=0)
@@ -39,7 +39,7 @@ def raw_to_final_form(raw_attention_gradients):
     return attention_gradients
 
 def compute_correlation(method='pearson'):
-    root = Path('gradient_probe_outputs')
+    root = Path('gradient_probing_outputs')
     settings = list(LingualSetting)
     settings.remove(LingualSetting.BASE)
     conversion = {
@@ -56,7 +56,7 @@ def compute_correlation(method='pearson'):
         for setting in ['cross', 'multi']:
             pool = []
             for task in ['POS', 'NER', 'PAWSX', 'MARC', 'NLI']:
-                pool.append(f'{task}/{task}_{setting}')
+                pool.append(f'{task}/{task}/{setting}')
             pool = list(combinations(pool, r=2))
             pairs.extend(pool)
         
@@ -74,8 +74,8 @@ def compute_correlation(method='pearson'):
         ps.columns = all_models
 
         for pair in pairs:
-            task_a, setting = pair[0].split("/")[1].split("_")
-            task_b = pair[1].split("/")[1].split("_")[0]
+            task_a, _, setting = pair[0].split("/")
+            task_b, _, _ = pair[1].split("/")
 
             if task_a in conversion:
                 task_a = conversion[task_a]
@@ -88,8 +88,8 @@ def compute_correlation(method='pearson'):
                 rho = rhos.loc[task_a, f'{task_b}-{setting}-ling']
                 p = ps.loc[task_a, f'{task_b}-{setting}-ling']
             else:
-                a = root.joinpath(f'{pair[0]}_gp', 'grad.pt')
-                b = root.joinpath(f'{pair[1]}_gp', 'grad.pt')
+                a = root.joinpath(f'{pair[0]}', 'grad.pt')
+                b = root.joinpath(f'{pair[1]}', 'grad.pt')
                 
                 a = raw_to_final_form(torch.load(a)).numpy().flatten()
                 b = raw_to_final_form(torch.load(b)).numpy().flatten()
@@ -133,8 +133,9 @@ def compute_correlation(method='pearson'):
             fmt=".2f",
             square=True)
 
-        ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor', fontsize=font_size)
+        ax.set_xticklabels(ax.get_xticklabels(), ha="right", rotation_mode='anchor')
         ax.tick_params(axis='y', labelsize=font_size, labelrotation=0)
+        ax.tick_params(axis='x', labelrotation=45, labelsize=font_size)
 
         fig = ax.get_figure()
         fig.savefig(root.joinpath(data[0]), bbox_inches='tight')
@@ -250,14 +251,14 @@ if __name__ == '__main__':
     parser.add_argument('--device_id', default=0)
     args = parser.parse_args()
     
-    prediction_gradient(
-        args.finetuned_task,
-        args.finetuned_setting,
-        args.downstream_task,
-        args.downstream_setting,
-        args.device_id,
-        Path(args.save_dir)
-    )
+    # prediction_gradient(
+    #     args.finetuned_task,
+    #     args.finetuned_setting,
+    #     args.downstream_task,
+    #     args.downstream_setting,
+    #     args.device_id,
+    #     Path(args.save_dir)
+    # )
 
-    # for method in ['pearson', 'spearman']:
-    #     compute_correlation(method)
+    for method in ['spearman']:
+        compute_correlation(method)

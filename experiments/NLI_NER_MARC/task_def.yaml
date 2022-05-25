@@ -37,31 +37,18 @@ ner:
   - train
   - test
   task_type: SequenceLabeling
-pos:
-  data_format: PremiseOnly
+nli:
+  data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:
-  - ADJ
-  - ADP
-  - ADV
-  - AUX
-  - CCONJ
-  - DET
-  - INTJ
-  - NOUN
-  - NUM
-  - PART
-  - PRON
-  - PROPN
-  - PUNCT
-  - SCONJ
-  - SYM
-  - VERB
-  - X
+  - contradiction
+  - neutral
+  - entailment
   loss: CeCriterion
   metric_meta:
-  - F1MAC
-  n_class: 17
+  - ACC
+  n_class: 3
   split_names:
   - train
+  - test
   task_type: Classification
