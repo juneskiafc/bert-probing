@@ -4,8 +4,6 @@ import sys
 from collections import OrderedDict
 import numpy as np
 import csv
-sys.path.append('/home/june/mt-dnn/')
-from experiments.exp_def import LingualSetting
 
 def _prepare_data(train_langs, test_langs, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -65,19 +63,6 @@ def cleave():
     
     for f in fios:
         f.close()
-
-def prepare_finetune_data():
-    train_langs_per_setting = {
-        LingualSetting.CROSS: ['en'],
-        LingualSetting.MULTI: ['en', 'fr', 'de', 'es']
-    }
-    test_langs = ['en', 'fr', 'de', 'es']
-
-    for setting in [LingualSetting.CROSS, LingualSetting.MULTI]:
-        out_dir = Path(f'experiments/MARC/{setting.name.lower()}')
-        train_langs = train_langs_per_setting[setting]
-
-        _prepare_data(train_langs, test_langs, out_dir)
 
 def subsample_and_combine(foreign_dataset, ps, seeds):
     def read_rows(filename):
@@ -139,11 +124,11 @@ def make_fractional():
     subsample_and_combine(foreign_dataset, multilingual_fractions, seeds)
 
 if __name__ == '__main__':
-    # make_per_language()
+    make_per_language()
     # make_multilingual()
     # make_crosslingual()
     # make_foreign()
-    make_fractional()
+    # make_fractional()
 
     # langs = ['es', 'fr', 'de']
     # out_dir = Path(f'experiments/MARC/foreign')

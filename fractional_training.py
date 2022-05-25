@@ -4,15 +4,15 @@ import pandas as pd
 import subprocess
 
 def evaluate_trained_models():
-    for seed in range(3):
+    for seed in range(1):
         for frac in [0.2, 0.4, 0.6, 0.8]:
-            for model in ['POS', 'NLI', 'PAWSX', 'MARC', 'NER']:
+            for model in ['PAWSX']:
                 if not Path(f'evaluation_results/{model}-{seed}-{frac}.csv').is_file():
                     command = 'python evaluate.py --device_id 0 '
                     try:
-                        model_ckpt = list(Path(f'checkpoint/fractional_training/{seed}/{frac}/{model}').rglob("*.pt"))[0]
+                        model_ckpt = list(Path(f'checkpoint/{model}_{frac}_{seed}').rglob("*.pt"))[0]
                         command += f'--model_ckpt {model_ckpt} '
-                        command += f'--out_file {model}-{seed}-{frac} --task NLI'
+                        command += f'--out_file {model}-{seed}-{frac} --task {model}'
                         subprocess.call(command, shell=True, stdout=subprocess.PIPE)
                     except:
                         continue
@@ -50,8 +50,8 @@ def make_graph():
                 
 
 if __name__ == '__main__':
-    # evaluate_trained_models()
-    make_graph()
+    evaluate_trained_models()
+    # make_graph()
 
 
         

@@ -29,6 +29,11 @@ def construct_model(checkpoint: str, task: Experiment, task_def_path: str, devic
             del state_dict['state'][f'scoring_list.{i}.weight']
             del state_dict['state'][f'scoring_list.{i}.bias']
             i += 1
+        
+        if task in [Experiment.NER, Experiment.POS]:
+            if 'pooler.dense.weight' in state_dict['state']:
+                del state_dict['state']['pooler.dense.weight']
+                del state_dict['state']['pooler.dense.bias']
 
     model = MTDNNModel(config, devices=[device_id], state_dict=state_dict)
     return model, metric_meta
