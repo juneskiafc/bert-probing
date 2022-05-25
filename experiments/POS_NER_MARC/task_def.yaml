@@ -1,64 +1,70 @@
-pos:
-  data_format: PremiseOnly
-  enable_san: false
-  split_names:
-    - train
-  labels:
-    - ADJ
-    - ADP
-    - ADV
-    - AUX
-    - CCONJ
-    - DET
-    - INTJ
-    - NOUN
-    - NUM
-    - PART
-    - PRON
-    - PROPN
-    - PUNCT
-    - SCONJ
-    - SYM
-    - VERB
-    - X
-  metric_meta:
-    - F1MAC
-  loss: CeCriterion
-  n_class: 17
-  task_type: Classification
-
-ner:
-  data_format: PremiseOnly
-  enable_san: False
-  labels:
-  - O
-  - B-ORG
-  - I-ORG
-  - B-PER
-  - I-PER
-  - B-LOC
-  - I-LOC
-  metric_meta:
-  - F1MAC
-  n_class: 7
-  loss: CeCriterion
-  split_names:
-  - train
-  task_type: Classification
-
 marc:
   data_format: PremiseOnly
-  enable_san: False
+  enable_san: false
   labels:
   - '1'
   - '2'
   - '3'
   - '4'
   - '5'
+  loss: CeCriterion
   metric_meta:
   - F1MAC
   n_class: 5
-  loss: CeCriterion
   split_names:
   - train
+  - test
   task_type: Classification
+ner:
+  data_format: Sequence
+  enable_san: false
+  labels:
+  - O
+  - B-PER
+  - I-PER
+  - B-ORG
+  - I-ORG
+  - B-LOC
+  - I-LOC
+  - X
+  - CLS
+  - SEP
+  loss: CeCriterion
+  metric_meta:
+  - SeqEvalList
+  n_class: 10
+  split_names:
+  - train
+  - test
+  task_type: SequenceLabeling
+pos:
+  data_format: Sequence
+  enable_san: false
+  labels:
+  - ADJ
+  - ADP
+  - ADV
+  - AUX
+  - CCONJ
+  - DET
+  - INTJ
+  - NOUN
+  - NUM
+  - PART
+  - PRON
+  - PROPN
+  - PUNCT
+  - SCONJ
+  - SYM
+  - VERB
+  - X
+  - CLS
+  - SEP
+  loss: CeCriterion
+  metric_meta:
+  - SeqEvalList
+  n_class: 19
+  split_names:
+  - train
+  - test
+  task_type: SequenceLabeling
