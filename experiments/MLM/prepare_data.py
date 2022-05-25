@@ -9,7 +9,6 @@ from datasets import Dataset
 from argparse import ArgumentParser
 from conllu import parse_incr
 from argparse import ArgumentParser
-import numpy as np
 
 
 ROOT = Path('experiments/NLI/')
