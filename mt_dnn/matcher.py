@@ -11,6 +11,7 @@ from torch.nn.modules.normalization import LayerNorm
 from data_utils.task_def import EncoderModelType, TaskType
 import tasks
 from experiments.exp_def import TaskDef
+import transformers
 
 def generate_decoder_opt(enable_san, max_opt):
     opt_v = 0
@@ -57,7 +58,7 @@ class SANBertNetwork(nn.Module):
             task_def: TaskDef = task_def_list[task_id]
             lab = task_def.n_class
 
-            if opt['gradient_probe']:
+            if opt.get('gradient_probe', False):
                 lab = opt['gradient_probe_n_classes']
             
             decoder_opt = self.decoder_opt[task_id]
