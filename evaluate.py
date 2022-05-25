@@ -95,10 +95,7 @@ if __name__ == '__main__':
         datasets = [
             # 'ar',
             # 'bg',
-            # 'de',
             # 'el',
-            # 'es',
-            # 'fr',
             # 'hi',
             # 'ru',
             # 'sw',
@@ -107,8 +104,10 @@ if __name__ == '__main__':
             # 'ur',
             # 'vi',
             # 'zh',
-            # 'en',
-            # 'combined'
+            'en',
+            'es',
+            'fr', 
+            'de',
             'multi'
         ]
     else:
@@ -126,6 +125,8 @@ if __name__ == '__main__':
             task_def_path,
             args.device_id,
             args.task_id)
+        
+        print(f'evaluation metric: {metric_meta[0]}')
         
         accs = evaluate_model_against_multiple_datasets(
             model,
