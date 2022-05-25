@@ -5,6 +5,7 @@ sys.path.append('/home/june/mt-dnn/')
 from experiments.exp_def import LingualSetting
 import csv
 from collections import OrderedDict
+import subprocess
 import numpy as np
 
 def _prepare_data(train_langs, test_langs, out_dir):
@@ -58,7 +59,7 @@ def prepare_finetune_data():
 
         _prepare_data(train_langs, test_langs, out_dir)
 
-def subsample_and_combine(foreign_dataset, ps):
+def subsample_and_combine(foreign_dataset, ps, seeds):
     def read_rows(filename):
         with open(filename, 'r') as f:
             rows = []
@@ -71,7 +72,6 @@ def subsample_and_combine(foreign_dataset, ps):
     fieldnames = ['id', 'label', 'premise', 'hypothesis']
     mnli_rows = read_rows('experiments/PAWSX/cross/pawsx_train.tsv')
 
-    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
     rows = read_rows(foreign_dataset)
     for i, seed_collection in enumerate(seeds):
         for p_idx, p in enumerate(ps):
@@ -114,14 +114,28 @@ def make_foreign():
     langs = ['fr', 'de', 'es']
     _prepare_data(langs, langs, out_dir)
 
-if __name__ == '__main__':
-    make_per_language()
-    make_multilingual()
-    make_crosslingual()
-    make_foreign()
+def make_fractional_training():
+    foreign_dataset = 'experiments/PAWSX/foreign/pawsx_train.tsv'
+    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
+    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8], seeds)
 
-    # foreign_dataset = 'experiments/PAWSX/foreign/pawsx_train.tsv'
-    # subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+def prepro_wrapper_for_foreign():
+    for i in range(3):
+        for frac in [0.2, 0.4, 0.6, 0.8]:
+            dataset_name = f'PAWSX/foreign_{frac}_{i}'
+            task_def = 'experiments/PAWSX/task_def.yaml'
+
+            cmd = f'python prepro_std.py --dataset {dataset_name} --task_def {task_def}'
+            split_cmd = cmd.split(" ")
+            subprocess.run(split_cmd)
+
+if __name__ == '__main__':
+    # make_per_language()
+    # make_multilingual()
+    # make_crosslingual()
+    # make_foreign()
+    # make_fractional_training()
+    prepro_wrapper_for_foreign()
 
 
 

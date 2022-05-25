@@ -51,7 +51,7 @@ def rank_heads():
                 sorted_layer_indices.to_csv(out_file)
 
 
-def preprocess_ranked_heads(setting):
+def preprocess_ranked_heads(setting, n_layers=12):
     all_data = {}
 
     for k in range(24, 144, 24):
@@ -73,7 +73,10 @@ def preprocess_ranked_heads(setting):
                     # get no. top heads per layer, normalize, and cumulative sum
                     for _, d in data.iterrows():
                         accumulated[int(d)] += 1
-                    accumulated = [a / sum(accumulated) for a in accumulated]
+                    
+                    accumulated = accumulated[:n_layers]
+                    if sum(accumulated) > 0:
+                        accumulated = [a / sum(accumulated) for a in accumulated]
 
                     if downstream_task not in data_for_k:
                         data_for_k[downstream_task] = {f'{upstream_task}_{ls}': accumulated}
@@ -115,9 +118,9 @@ def get_colors_as_hex():
     return [all_named_colors[c] for c in cs]
 
 
-def organize_data_self_probing(data, ks, ds_tasks):
+def organize_data_self_probing(data, ks, ds_tasks, n_layers=12):
     layer_dfs = []
-    for layer in range(12):
+    for layer in range(n_layers):
         d = []
         for k in ks:
             data_for_k = []
@@ -137,9 +140,9 @@ def organize_data_self_probing(data, ks, ds_tasks):
     return layer_dfs
 
 
-def organize_data_cross_probing(data, k, ds_tasks):
+def organize_data_cross_probing(data, k, ds_tasks, n_layers=12):
     layer_dfs = []
-    for layer in range(12):
+    for layer in range(n_layers):
         d = []
         for downstream_task in ds_tasks:
             data_for_ds_task = data[k][downstream_task]
@@ -152,7 +155,7 @@ def organize_data_cross_probing(data, k, ds_tasks):
     return layer_dfs
 
 
-def plot(setting='combined', self_probing=True, cross_probing=True):
+def plot(setting='combined', self_probing=True, cross_probing=True, n_layers=12):
     font_size = 14
     parameters = {
         'axes.labelsize': font_size,
@@ -175,12 +178,12 @@ def plot(setting='combined', self_probing=True, cross_probing=True):
     models_to_plot = [f'{m[0]}_{m[1]}' for m in models_to_plot]
     model_names_to_plot = [f'{m[0]}-{m[1]}-ling' for m in model_names_to_plot]
 
-    data = preprocess_ranked_heads(setting)
+    data = preprocess_ranked_heads(setting, n_layers=n_layers)
 
     # self probing
     if self_probing:
-        layer_dfs = organize_data_self_probing(data, ks, ds_tasks)
-        _, super_ax = plot_groupby(layer_dfs, ks, models_to_plot, model_names_to_plot, colors, 'k=')
+        layer_dfs = organize_data_self_probing(data, ks, ds_tasks, n_layers=n_layers)
+        _, super_ax = plot_groupby(layer_dfs, ks, models_to_plot, model_names_to_plot, colors, 'k=', n_layers=n_layers)
         super_ax.set_xlabel("Models", labelpad=100, fontweight='bold')
         super_ax.set_ylabel("Layer-wise distribution of top-k attention heads", labelpad=20, fontweight='bold')
 
@@ -191,8 +194,8 @@ def plot(setting='combined', self_probing=True, cross_probing=True):
     # cross probing
     if cross_probing:
         for k in ks:
-            layer_dfs = organize_data_cross_probing(data, k, ds_tasks)
-            _, super_ax = plot_groupby(layer_dfs, ds_tasks, models_to_plot, model_names_to_plot, colors, '')
+            layer_dfs = organize_data_cross_probing(data, k, ds_tasks, n_layers=n_layers)
+            _, super_ax = plot_groupby(layer_dfs, ds_tasks, models_to_plot, model_names_to_plot, colors, '', n_layers=n_layers)
 
             super_ax.set_xlabel("Models", labelpad=100, fontweight='bold')
             top_x_ax = super_ax.secondary_xaxis('top')
@@ -213,12 +216,13 @@ def plot_groupby(
     model_names_to_plot,
     colors,
     groupby_prefix,
+    n_layers=12
 ):
     global_fig, axes = plt.subplots(1, len(groupby), sharey=True, figsize=(20, 7))
     
     for i, ax_for_k in enumerate(axes):
         bottom = 0
-        for layer in range(12):
+        for layer in range(n_layers):
             bar = ax_for_k.bar(
                 model_names_to_plot,
                 layer_dfs[layer].loc[groupby[i], models_to_plot],
@@ -263,4 +267,4 @@ def plot_groupby(
 if __name__ == '__main__':
     move_files()
     rank_heads()
-    plot()
+    plot(n_layers=10)
