@@ -12,6 +12,9 @@ def save_all_kqv(model_ckpt, output_dir):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    if output_dir.joinpath(model_name).is_dir():
+        return
+
     if model_ckpt == '':
         _, model_class, _ = MODEL_CLASSES['bert']
         bert = model_class.from_pretrained('bert-base-multilingual-cased', cache_dir='.cache')
@@ -260,12 +263,12 @@ def get_mean_across_seeds(task, setting, return_df_only=True):
     fig.savefig(heatmap_out_file, bbox_inches='tight')
 
 def main_sequence(task, output_dir):
-    model_ckpt_cross = list(Path('checkpoint').joinpath(f'{task}_cross').rglob("model_5*.pt"))[0]
-    model_ckpt_multi = list(Path('checkpoint').joinpath(f'{task}_multi').rglob("model_5*.pt"))[0]
+    # model_ckpt_cross = list(Path('checkpoint').joinpath(f'{task}_cross').rglob("model_5*.pt"))[0]
+    # model_ckpt_multi = list(Path('checkpoint').joinpath(f'{task}_multi').rglob("model_5*.pt"))[0]
 
-    save_all_kqv('', output_dir) # BERT
-    save_all_kqv(model_ckpt_cross, output_dir)
-    save_all_kqv(model_ckpt_multi, output_dir)
+    # save_all_kqv('', output_dir) # BERT
+    # save_all_kqv(model_ckpt_cross, output_dir)
+    # save_all_kqv(model_ckpt_multi, output_dir)
 
     compare_kqv(f'{task}_cross', output_dir)
     compare_kqv(f'{task}_multi', output_dir)
@@ -279,4 +282,11 @@ if __name__ == "__main__":
     parser.add_argument('--diffs_to_compare', nargs='+')
     args = parser.parse_args()
     
-    main_sequence(args.task, args.output_dir)
+    # main_sequence(args.task, args.output_dir)
+
+    diffs = [
+        f'kqv_outputs/results/{args.task}_cross_diffs.npy',
+        f'kqv_outputs/results/{args.task}_multi_diffs.npy',
+    ]
+    rho, p = get_spearmans_rho(diffs)
+    print(args.task, rho, p)
