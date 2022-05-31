@@ -11,6 +11,10 @@ from pretrained_models import MODEL_CLASSES
 def save_all_kqv(model_ckpt, output_dir):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    model_name = Path(model_ckpt).parent
+
+    if output_dir.joinpath(model_name).is_dir():
+        return
 
     if model_ckpt == '':
         _, model_class, _ = MODEL_CLASSES['bert']
@@ -119,6 +123,7 @@ def create_ranked_heads_heatmap(diffs_file, out_file, normalize=True, diffs=None
     fig.savefig(out_file, bbox_inches='tight')
 
 def get_kqv_update_diff(model_name, output_dir):
+    model_name = model_name.split("_")[0]
     diffs = [
         Path('kqv_outputs').joinpath('results', f'{model_name}_cross_diffs.npy'),
         Path('kqv_outputs').joinpath('results', f'{model_name}_multi_diffs.npy')
@@ -129,8 +134,8 @@ def get_kqv_update_diff(model_name, output_dir):
     heatmap = diffs_a - diffs_b
     heatmap = (2 * ((heatmap - np.amin(heatmap)) / (np.amax(heatmap) - np.amin(heatmap)))) - 1
 
-    font_size = 25
-    plt.figure(figsize=(14, 14))
+    font_size = 45
+    plt.figure(figsize=(20, 16))
     annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         heatmap,
@@ -267,9 +272,9 @@ def main_sequence(task, output_dir):
     save_all_kqv(model_ckpt_cross, output_dir)
     save_all_kqv(model_ckpt_multi, output_dir)
 
-    compare_kqv(f'{task}_cross', output_dir)
-    compare_kqv(f'{task}_multi', output_dir)
-    get_kqv_update_diff(task, output_dir)
+    save_all_kqv(model_ckpt, output_dir)
+    compare_kqv(model_name, output_dir)
+    get_kqv_update_diff(model_name, output_dir)
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -279,10 +284,10 @@ if __name__ == "__main__":
     parser.add_argument('--diffs_to_compare', nargs='+')
     args = parser.parse_args()
     
-    # main_sequence(args.task, args.output_dir)
     diffs = [
         f'kqv_outputs/results/{args.task}_cross_diffs.npy',
         f'kqv_outputs/results/{args.task}_multi_diffs.npy',
     ]
     rho, p = get_spearmans_rho(diffs)
     print(args.task, rho)
+    main_sequence(args.task, args.output_dir)
