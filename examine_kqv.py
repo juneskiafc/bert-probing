@@ -130,8 +130,8 @@ def get_kqv_update_diff(model_name, output_dir):
     heatmap = diffs_a - diffs_b
     heatmap = (2 * ((heatmap - np.amin(heatmap)) / (np.amax(heatmap) - np.amin(heatmap)))) - 1
 
-    font_size = 45
-    plt.figure(figsize=(20, 16))
+    font_size = 25
+    plt.figure(figsize=(14, 14))
     annot_kws = {'fontsize': font_size}
     ax = sns.heatmap(
         heatmap,

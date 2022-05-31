@@ -52,7 +52,7 @@ for downstream_task in tasks:
     if downstream_task in [Experiment.NER, Experiment.POS]:
         cmd += ' --model_probe_sequence'
 
-    process = subprocess.run(cmd.split(' '))
+    process = subprocess.call(cmd.split(' '))
 
     # trim checkpoint
     state_dict_path = list(Path('checkpoint').joinpath(exp_name).rglob("*.pt"))[0]

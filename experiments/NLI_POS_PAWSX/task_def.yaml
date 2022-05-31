@@ -1,25 +1,32 @@
-ner:
-  data_format: Sequence
+nli:
+  data_format: PremiseAndOneHypothesis
   enable_san: false
   labels:
-  - O
-  - B-PER
-  - I-PER
-  - B-ORG
-  - I-ORG
-  - B-LOC
-  - I-LOC
-  - X
-  - CLS
-  - SEP
+  - contradiction
+  - neutral
+  - entailment
   loss: CeCriterion
   metric_meta:
-  - SeqEvalList
-  n_class: 10
+  - ACC
+  n_class: 3
   split_names:
   - train
   - test
-  task_type: SequenceLabeling
+  task_type: Classification
+pawsx:
+  data_format: PremiseAndOneHypothesis
+  enable_san: false
+  labels:
+  - '0'
+  - '1'
+  loss: CeCriterion
+  metric_meta:
+  - F1MAC
+  n_class: 2
+  split_names:
+  - train
+  - test
+  task_type: Classification
 pos:
   data_format: Sequence
   enable_san: false

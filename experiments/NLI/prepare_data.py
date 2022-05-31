@@ -164,7 +164,67 @@ def subsample_and_combine(foreign_dataset, ps):
                 for r in mnli_rows:
                     writer.writerow(r)
 
+def make_per_language():
+    langs = [
+            'ar',
+            'bg',
+            'de',
+            'el',
+            'es',
+            'en',
+            'fr',
+            'hi',
+            'ru',
+            'sw',
+            'th',
+            'tr',
+            'ur',
+            'vi',
+            'zh',
+        ]
+    make_per_language_multilingual_data(langs)
+
+def make_multilingual():
+    if not MULTI_TRAIN.is_file():
+        raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], MULTI_TRAIN)
+    if not CROSS_TEST.is_file():
+        raw_tsv_to_mtdnn_format([XNLI_TEST], MULTI_TEST)
+
+def make_crosslingual():
+    # MNLI train set is also cross-lingual training set
+    if not CROSS_TRAIN.is_file():
+        raw_tsv_to_mtdnn_format([MNLI_TRAIN], CROSS_TRAIN)
+
+    # cross-lingual test set is XNLI test set
+    if not CROSS_TEST.is_file():
+        raw_tsv_to_mtdnn_format([XNLI_TEST], CROSS_TEST)
+
+def make_foreign():
+    langs = [
+            'ar',
+            'bg',
+            'de',
+            'el',
+            'es',
+            'fr',
+            'hi',
+            'ru',
+            'sw',
+            'th',
+            'tr',
+            'ur',
+            'vi',
+            'zh',
+        ]
+    raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], 'experiments/NLI/foreign/nli_train.tsv', langs)
+    raw_tsv_to_mtdnn_format([XNLI_TEST], 'experiments/NLI/foreign/nli_test.tsv', langs)
+
 if __name__ == '__main__':
+    make_per_language()
+    make_multilingual()
+    make_crosslingual()
+    make_foreign()
+
     langs = [
             'ar',
             'bg',

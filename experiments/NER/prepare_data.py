@@ -104,6 +104,8 @@ def subsample_and_combine(foreign_dataset, ps, seeds):
             
                 for r in mnli_rows:
                     writer.writerow(r)
+            
+            raise ValueError
 
 # MAIN DATA GENERATION
 def make_multilingual():
@@ -139,7 +141,8 @@ def make_foreign():
 def make_fractional_training():
     foreign_dataset = 'experiments/NER/foreign/ner_train.tsv'
     seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
-    multilingual_fractions = [0.2, 0.4, 0.6, 0.8]
+    # multilingual_fractions = [0.2, 0.4, 0.6, 0.8]
+    multilingual_fractions = [1]
 
     subsample_and_combine(foreign_dataset, multilingual_fractions, seeds)
 
@@ -159,8 +162,8 @@ if __name__ == '__main__':
     # make_crosslingual()
     # make_foreign()
 
-    # make_fractional_training()
-    prepro_wrapper_for_foreign()
+    make_fractional_training()
+    # prepro_wrapper_for_foreign()
 
 
 
