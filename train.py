@@ -491,8 +491,17 @@ def main():
         if args.model_ckpt != '':
             print(f'model_probe, loading model ckpt from {args.model_ckpt}')
             state_dict = torch.load(args.model_ckpt, map_location=f'cuda:{args.devices[0]}')
-            state_dict['state']['scoring_list.0.weight'] = model.network.state_dict()['scoring_list.0.weight']
-            state_dict['state']['scoring_list.0.bias'] = model.network.state_dict()['scoring_list.0.bias']
+
+            # scoring_list can be anything, because we don't use it during model probing
+            i = 0
+            while f'scoring_list.{i}.weight' in state_dict['state'].keys():
+                if f'scoring_list.{i}.weight' in model.network.state_dict():
+                    state_dict['state'][f'scoring_list.{i}.weight'] = model.network.state_dict()[f'scoring_list.{i}.weight']
+                    state_dict['state'][f'scoring_list.{i}.bias'] = model.network.state_dict()[f'scoring_list.{i}.bias']
+                else:
+                    del state_dict['state'][f'scoring_list.{i}.weight']
+                    del state_dict['state'][f'scoring_list.{i}.bias']
+                i += 1
 
             # if model finetuned under SequenceLabeling and model probing on a task that is Classification
             if 'pooler.dense.weight' not in state_dict['state'] and 'pooler.dense.weight' in model.network.state_dict():
