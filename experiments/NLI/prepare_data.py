@@ -4,6 +4,7 @@ import sys
 import jsonlines
 import numpy as np
 from pathlib import Path
+import subprocess
 csv.field_size_limit(sys.maxsize)
 
 RAW_DATA_PATH = Path('./experiments/NLI/data_raw')
@@ -135,55 +136,54 @@ def make_evaluation_data():
     fourlang_datasets = [f'experiments/NLI/{lang}/nli_test.tsv' for lang in langs if lang in ['en', 'fr', 'de', 'es']]
     combine_datasets(fourlang_datasets, 'experiments/NLI/4lang_combined/nli_test.tsv')
 
-def subsample_and_combine(foreign_dataset, ps):
+def subsample_and_combine(foreign_dataset, ps, seeds):
     fieldnames = ['id', 'label', 'premise', 'hypothesis']
     with open(f'experiments/NLI/cross/nli_train.tsv', 'r') as f:
         reader =csv.DictReader(f, delimiter='\t', fieldnames=fieldnames)
         mnli_rows = [row for row in reader]
 
-    seeds = list(range(1000, 1500, 100))
-    with open(foreign_dataset, 'r') as fr:
-        reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
-        rows = [r for r in reader]
-        for p_idx, p in enumerate(ps):
-            np.random.seed(seeds[p_idx])
-            subsampled_idxs = np.random.choice(
-                np.arange(len(rows)),
-                size=int(len(rows)*p),
-                replace=False)
-            subsampled_rows = [rows[i] for i in subsampled_idxs]
+    for i, seed_collection in enumerate(seeds):
+        with open(foreign_dataset, 'r') as fr:
+            reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
+            rows = [r for r in reader]
 
-            out_file = Path(f'experiments/NLI/foreign_{p}_2/nli_train.tsv')
-            out_file.parent.mkdir(parents=True, exist_ok=True)
+            for p_idx, p in enumerate(ps):
+                out_file = Path(f'experiments/NLI/foreign_{p}_{i}/nli_train.tsv')
+                if out_file.is_file():
+                    continue
+                    
+                np.random.seed(seed_collection[p_idx])
+                subsampled_idxs = np.random.choice(
+                    np.arange(len(rows)),
+                    size=int(len(rows)*p),
+                    replace=False)
+                subsampled_rows = [rows[i] for i in subsampled_idxs]
 
-            with open(out_file, 'w') as fw:
-                writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
-                for row in subsampled_rows:
-                    writer.writerow(row)
-            
-                for r in mnli_rows:
-                    writer.writerow(r)
+                out_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(out_file, 'w') as fw:
+                    writer = csv.DictWriter(fw, fieldnames, delimiter='\t')
+                    for row in subsampled_rows:
+                        writer.writerow(row)
+                
+                    for r in mnli_rows:
+                        writer.writerow(r)
+
+def make_fractional_training():
+    foreign_dataset = 'experiments/NLI/foreign/nli_train.tsv'
+    seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
+    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8], seeds)
+    prepro_wrapper_for_foreign()
+
+def prepro_wrapper_for_foreign():
+    for i in range(3):
+        for frac in [0.2, 0.4, 0.6, 0.8]:
+            dataset_name = f'NLI/foreign_{frac}_{i}'
+            task_def = 'experiments/NLI/task_def.yaml'
+
+            cmd = f'python prepro_std.py --dataset {dataset_name} --task_def {task_def}'
+            split_cmd = cmd.split(" ")
+            subprocess.run(split_cmd)
 
 if __name__ == '__main__':
-    langs = [
-            'ar',
-            'bg',
-            'de',
-            'el',
-            'es',
-            'fr',
-            'hi',
-            'ru',
-            'sw',
-            'th',
-            'tr',
-            'ur',
-            'vi',
-            'zh',
-        ]
-    make_per_language_multilingual_data(langs)
-    datasets = [f'experiments/NLI/{lang}/nli_train.tsv' for lang in langs]
-    combine_datasets(datasets, 'experiments/NLI/foreign/nli_train.tsv')
-    foreign_dataset = 'experiments/NLI/foreign/nli_train.tsv'
-    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8])
+    make_fractional_training()
 

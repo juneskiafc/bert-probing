@@ -11,6 +11,10 @@ from pretrained_models import MODEL_CLASSES
 def save_all_kqv(model_ckpt, output_dir):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    model_name = Path(model_ckpt).parent
+
+    if output_dir.joinpath(model_name).is_dir():
+        return
 
     if model_ckpt == '':
         _, model_class, _ = MODEL_CLASSES['bert']
@@ -260,11 +264,13 @@ def get_mean_across_seeds(task, setting, return_df_only=True):
     fig = ax.get_figure()
     fig.savefig(heatmap_out_file, bbox_inches='tight')
 
-def main_sequence(model_ckpt, model_name, output_dir):
-    if model_name == '':
-        model_name = Path(model_ckpt).parent.name
-    if model_ckpt == '':
-        model_ckpt = list(Path('checkpoint').joinpath(model_name).rglob("model_5*.pt"))[0]
+def main_sequence(task, output_dir):
+    model_ckpt_cross = list(Path('checkpoint').joinpath(f'{task}_cross').rglob("model_5*.pt"))[0]
+    model_ckpt_multi = list(Path('checkpoint').joinpath(f'{task}_multi').rglob("model_5*.pt"))[0]
+
+    save_all_kqv('', output_dir) # BERT
+    save_all_kqv(model_ckpt_cross, output_dir)
+    save_all_kqv(model_ckpt_multi, output_dir)
 
     save_all_kqv(model_ckpt, output_dir)
     compare_kqv(model_name, output_dir)
@@ -272,11 +278,17 @@ def main_sequence(model_ckpt, model_name, output_dir):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--model_ckpt', type=str, default='')
+    parser.add_argument('--task', type=str, default='')
     parser.add_argument('--output_dir', type=str, default='kqv_outputs')
-    parser.add_argument('--model_name', type=str, default='')
 
     parser.add_argument('--diffs_to_compare', nargs='+')
     args = parser.parse_args()
     
-    main_sequence(args.model_ckpt, args.model_name, args.output_dir)
+    main_sequence(args.task, args.output_dir)
+
+    # diffs = [
+    #     f'kqv_outputs/results/{args.task}_cross_diffs.npy',
+    #     f'kqv_outputs/results/{args.task}_multi_diffs.npy',
+    # ]
+    # rho, p = get_spearmans_rho(diffs)
+    # print(args.task, rho, p)
