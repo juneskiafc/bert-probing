@@ -100,6 +100,8 @@ def subsample_and_combine(foreign_dataset, ps, seeds):
                     for r in mnli_rows:
                         writer.writerow(r)
 
+                raise ValueError
+
 def combine_datasets(datasets, out_file):
     if out_file.is_file():
         return
@@ -161,7 +163,9 @@ def make_foreign():
 def make_fractional_training():
     foreign_dataset = 'experiments/POS/foreign/pos_train.tsv'
     seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
-    subsample_and_combine(foreign_dataset, [0.2, 0.4, 0.6, 0.8], seeds)
+    fracs = [0.2, 0.4, 0.6, 0.8]
+    fracs = [1]
+    subsample_and_combine(foreign_dataset, fracs, seeds)
 
 def prepro_wrapper_for_foreign():
     for i in range(3):
@@ -179,6 +183,6 @@ if __name__ == '__main__':
     # make_crosslingual()
     # make_foreign()
 
-    # make_fractional_training()
-    prepro_wrapper_for_foreign()
+    make_fractional_training()
+    # prepro_wrapper_for_foreign()
             

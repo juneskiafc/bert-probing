@@ -160,6 +160,7 @@ def main():
     training_args.num_train_epochs = 2
     training_args.do_train = True
     training_args.output_dir = training_args.output_dir + f"/mlm_finetuned/{training_args.run_name}/"
+    training_args.save_total_limit = 1
 
     if data_args.eval_data_file is None and training_args.do_eval:
         raise ValueError(
