@@ -258,7 +258,6 @@ def get_model_probe_scores(
     results = pd.DataFrame(results)
     results.index = [model_name]
     results.columns = [task.name for task in tasks]
-
     results.to_csv(results_out_file)
 
 def create_perlang_results(finetuned_task, finetuned_setting, downstream_task, langs):
@@ -352,7 +351,13 @@ def get_scores_main(args):
                 'multi'
             ]
         else:
-            langs = ['en', 'fr', 'de', 'es', 'multi']
+            langs = [
+                'en',
+                'fr',
+                'de',
+                'es',
+                'multi'
+            ]
         
         for lang in langs:            
             get_model_probe_scores(
