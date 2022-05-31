@@ -4,7 +4,7 @@ import pandas as pd
 import subprocess
 
 def evaluate_trained_models():
-    for seed in range(1):
+    for seed in range(3):
         for frac in [0.2, 0.4, 0.6, 0.8]:
             for model in ['PAWSX']:
                 if not Path(f'evaluation_results/{model}-{seed}-{frac}.csv').is_file():

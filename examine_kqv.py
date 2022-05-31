@@ -279,4 +279,10 @@ if __name__ == "__main__":
     parser.add_argument('--diffs_to_compare', nargs='+')
     args = parser.parse_args()
     
-    main_sequence(args.task, args.output_dir)
+    # main_sequence(args.task, args.output_dir)
+    diffs = [
+        f'kqv_outputs/results/{args.task}_cross_diffs.npy',
+        f'kqv_outputs/results/{args.task}_multi_diffs.npy',
+    ]
+    rho, p = get_spearmans_rho(diffs)
+    print(args.task, rho)
