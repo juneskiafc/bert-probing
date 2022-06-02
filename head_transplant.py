@@ -1,5 +1,8 @@
 from pathlib import Path
 import torch
+import subprocess
+from evaluate import evaluate_model_against_multiple_datasets
+from experiments.exp_def import Experiment, TaskDefs
 
 for task in ['MARC', 'NLI', 'POS', 'NER', 'PAWSX']:
     cross_checkpoint_dir = Path(f'checkpoint/{task}_cross')
@@ -15,4 +18,39 @@ for task in ['MARC', 'NLI', 'POS', 'NER', 'PAWSX']:
         base_model['state']['scoring_list.0.weight'] = multilingual_model['state']['scoring_list.0.weight']
         base_model['state']['scoring_list.0.bias'] = multilingual_model['state']['scoring_list.0.bias']
 
-        torch.save(base_model, Path(f'checkpoint/{task}_transplant.pt'))
+        task_def_path = f'experiments/{task}/task_def.yaml'
+        task_def = TaskDefs(task_def_path).get_task_def(task)
+        metric_meta = task_def.metric_meta
+
+        if task == 'NLI':
+            datasets = [
+                # 'ar',
+                # 'bg',
+                # 'el',
+                # 'hi',
+                # 'ru',
+                # 'sw',
+                # 'th',
+                # 'tr',
+                # 'ur',
+                # 'vi',
+                # 'zh',
+                'en',
+                'es',
+                'fr', 
+                'de',
+                'multi'
+            ]
+        else:
+            datasets = ['en', 'fr', 'de', 'es', 'multi']
+
+        evaluate_model_against_multiple_datasets(
+            base_model,
+            'BERT',
+            Experiment[task],
+            metric_meta,
+            datasets,
+            task_def_path,
+            device_id=0
+        )
+        
