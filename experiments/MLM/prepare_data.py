@@ -83,6 +83,8 @@ def make_mlm_data_from_raw_xnli(split, out_dir, languages=None, separate_premise
 
     if split == 'train':
         xnli_path = raw_nli_data_path.joinpath('xnli.dev.jsonl')
+        mnli_path = raw_nli_data_path.joinpath('multinli_1.0_train.jsonl')
+
     else:
         xnli_path = raw_nli_data_path.joinpath('xnli.test.jsonl')
 
@@ -96,6 +98,16 @@ def make_mlm_data_from_raw_xnli(split, out_dir, languages=None, separate_premise
             out_file.parent.mkdir(parents=True, exist_ok=True)
         
             with open(out_file, 'w', encoding='utf-8') as fw:
+                if lang == 'en':
+                    with jsonlines.open(mnli_path) as fr:
+                        for row in fr:
+                            premise = row['sentence1']
+                            hypo = row['sentence2']
+                            
+                            for sent in [premise, hypo]:
+                                fw.write(sent)
+                                fw.write("\n")
+                
                 with jsonlines.open(xnli_path) as fr:
                     for row in fr:
                         c1 = (languages is not None) and (row['language'] in languages)

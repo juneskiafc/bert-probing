@@ -426,7 +426,8 @@ def main():
                     params_to_add.extend([f"scoring_list.{i}.weight", f"scoring_list.{i}.bias"])
                 
                 for param_name in params_to_add:
-                    state_dict[param_name] = _init_state_dict[param_name]
+                    if param_name in _init_state_dict:
+                        state_dict[param_name] = _init_state_dict[param_name]
                 
                 state_dict = {'state': state_dict}
             

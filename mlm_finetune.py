@@ -78,6 +78,9 @@ class ModelArguments:
     mtdnn_checkpoint: Optional[str] = field(
         default=''
     )
+    domain_adaptation: Optional[str] = field(
+        default=None
+    )
 
 @dataclass
 class DataTrainingArguments:

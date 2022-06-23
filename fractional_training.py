@@ -24,7 +24,7 @@ def make_graph():
         ax = plt.subplot(111)
         colors = ['black', 'green', 'blue']
         cross_result = pd.read_csv(root.joinpath(f'{us_task}_cross.csv'), index_col=0).iloc[-1, 0]
-        multi_result = pd.read_csv(root.joinpath(f'{us_task}-0-1.csv'), index_col=0).iloc[-1, 0]
+        multi_result = pd.read_csv(root.joinpath(f'{us_task}_multi.csv'), index_col=0).iloc[-1, 0]
 
         seeds = [500, 900, 1300]
         for seed in range(3):
@@ -45,7 +45,7 @@ def make_graph():
         ax.set_xlabel('fraction of target language training data')
         ax.legend()
 
-        plt.savefig(root.joinpath(f'{us_task}.pdf'), bbox_inches='tight')
+        plt.savefig(root.joinpath(f'{us_task}_frac.pdf'), bbox_inches='tight')
         plt.clf()
                 
 
