@@ -36,22 +36,22 @@ def evaluate_trained_models(task):
 def make_graph(task):
     plt.rcParams.update({'font.size': 14})
 
-    root = Path('evaluation_results')
+    root = Path('evaluation_results').joinpath('fractional_training', task)
     us_tasks = [Experiment[task.upper()]]
 
     for us_task in us_tasks:
         ax = plt.subplot(111)
         colors = ['black', 'green', 'blue']
-        cross_result_path = root.joinpath(f'{us_task.name}_cross.csv')
-        multi_result_path = root.joinpath(f'{us_task.name}_multi.csv')
+        cross_result_path = root.joinpath(f'{us_task.name}-0-0.csv')
+        multi_result_path = root.joinpath(f'{us_task.name}-0-1.csv')
 
         if cross_result_path.is_file():
-            cross_result = pd.read_csv(root.joinpath(f'{us_task.name}_cross.csv'), index_col=0).iloc[-1, 0]
+            cross_result = pd.read_csv(cross_result_path, index_col=0).iloc[-1, 0]
         else:
             raise ValueError(f'please evalute {us_task}_cross')
 
         if multi_result_path.is_file():
-            multi_result = pd.read_csv(root.joinpath(f'{us_task.name}_multi.csv'), index_col=0).iloc[-1, 0]
+            multi_result = pd.read_csv(multi_result_path, index_col=0).iloc[-1, 0]
         else:
             raise ValueError(f'please evalute {us_task.name}_multi')
 
@@ -91,9 +91,9 @@ if __name__ == '__main__':
     parser.add_argument('--task', default='', type=str, required=True)
     args = parser.parse_args()
 
-    calculate_num_steps(args.task)
+    # calculate_num_steps(args.task)
     # evaluate_trained_models(args.task)
-    # make_graph(args.task)
+    make_graph(args.task)
 
 
         

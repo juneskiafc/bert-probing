@@ -552,7 +552,7 @@ def main():
     epoch = init_epoch_idx
     
     while total_training_steps < num_all_steps:        
-        print_message(logger, f'At epoch {init_epoch_idx}, step {init_global_step}', level=1)
+        print_message(logger, f'At epoch {epoch}, step {total_training_steps}', level=1)
 
         for (batch_meta, batch_data) in multi_task_train_dataloader:
             batch_meta, batch_data = Collater.patch_data(
