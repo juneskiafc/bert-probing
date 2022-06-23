@@ -51,7 +51,7 @@ def evaluate_model_against_multiple_datasets(
     
     for dataset in datasets:
         print(f'Evaluating on {dataset}')
-        if model_type == 'bert':
+        if model_type.lower() == 'bert':
             model_full_name = 'bert-base-multilingual-cased'
         else:
             model_full_name = 'xlm-roberta-base'

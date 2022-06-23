@@ -232,9 +232,6 @@ class MTDNNModel(object):
         loss_criterion = self.task_loss_criterion[task_id]
         if loss_criterion and (y is not None):
             y.to(logits.device)
-            if len(logits.shape) > 2:
-                # sequence output, combine seq w/ batch
-                logits = einops.rearrange(logits, 'b s c -> (b s) c')
             loss = loss_criterion(logits, y, weight, ignore_index=-1)
 
         batch_size = batch_data[batch_meta['token_id']].size(0)

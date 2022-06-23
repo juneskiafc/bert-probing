@@ -146,7 +146,6 @@ def subsample_and_combine(foreign_dataset, ps, seeds):
         with open(foreign_dataset, 'r') as fr:
             reader = csv.DictReader(fr, delimiter='\t', fieldnames=fieldnames)
             rows = [r for r in reader]
-
             for p_idx, p in enumerate(ps):
                 out_file = Path(f'experiments/NLI/foreign_{p}_{i}/nli_train.tsv')
                 if out_file.is_file():
@@ -168,6 +167,61 @@ def subsample_and_combine(foreign_dataset, ps, seeds):
                     for r in mnli_rows:
                         writer.writerow(r)
 
+def make_per_language():
+    langs = [
+            'ar',
+            'bg',
+            'de',
+            'el',
+            'es',
+            'en',
+            'fr',
+            'hi',
+            'ru',
+            'sw',
+            'th',
+            'tr',
+            'ur',
+            'vi',
+            'zh',
+        ]
+    make_per_language_multilingual_data(langs)
+
+def make_multilingual():
+    if not MULTI_TRAIN.is_file():
+        raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], MULTI_TRAIN)
+    if not CROSS_TEST.is_file():
+        raw_tsv_to_mtdnn_format([XNLI_TEST], MULTI_TEST)
+
+def make_crosslingual():
+    # MNLI train set is also cross-lingual training set
+    if not CROSS_TRAIN.is_file():
+        raw_tsv_to_mtdnn_format([MNLI_TRAIN], CROSS_TRAIN)
+
+    # cross-lingual test set is XNLI test set
+    if not CROSS_TEST.is_file():
+        raw_tsv_to_mtdnn_format([XNLI_TEST], CROSS_TEST)
+
+def make_foreign():
+    langs = [
+            'ar',
+            'bg',
+            'de',
+            'el',
+            'es',
+            'fr',
+            'hi',
+            'ru',
+            'sw',
+            'th',
+            'tr',
+            'ur',
+            'vi',
+            'zh',
+        ]
+    raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], 'experiments/NLI/foreign/nli_train.tsv', langs)
+    raw_tsv_to_mtdnn_format([XNLI_TEST], 'experiments/NLI/foreign/nli_test.tsv', langs)
+
 def make_fractional_training():
     foreign_dataset = 'experiments/NLI/foreign/nli_train.tsv'
     seeds = [list(range(500, 900, 100)), list(range(900, 1300, 100)), list(range(1300, 1700, 100))]
@@ -185,5 +239,9 @@ def prepro_wrapper_for_foreign():
             subprocess.run(split_cmd)
 
 if __name__ == '__main__':
-    make_fractional_training()
+    make_per_language()
+    make_multilingual()
+    make_crosslingual()
+    make_foreign()
+
 

@@ -121,7 +121,7 @@ def get_metric(
 
     return metrics[metric_name], preds_df, golds_df, id_df
 
-def base_construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int):
+def base_construct_model(checkpoint: str, task: Experiment, task_def_path: str, device_id: int, state_dict=None):
     task_defs = TaskDefs(task_def_path)
     task_name = task.name.lower()
     metric_meta = task_defs._metric_meta_map[task_name]

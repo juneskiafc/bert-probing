@@ -1,20 +1,20 @@
 marc:
   data_format: PremiseOnly
-  enable_san: False
+  enable_san: false
   labels:
   - '1'
   - '2'
   - '3'
   - '4'
   - '5'
-  metric_meta:
-  - ACC
-  n_class: 5
   loss: CeCriterion
+  metric_meta:
+  - F1MAC
+  n_class: 5
   split_names:
   - train
+  - test
   task_type: Classification
-
 nli:
   data_format: PremiseAndOneHypothesis
   enable_san: false
@@ -24,8 +24,9 @@ nli:
   - entailment
   loss: CeCriterion
   metric_meta:
-  - F1MAC
+  - ACC
   n_class: 3
   split_names:
   - train
+  - test
   task_type: Classification

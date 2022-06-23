@@ -1,0 +1,53 @@
+ner:
+  data_format: Sequence
+  enable_san: false
+  labels:
+  - O
+  - B-PER
+  - I-PER
+  - B-ORG
+  - I-ORG
+  - B-LOC
+  - I-LOC
+  - X
+  - CLS
+  - SEP
+  loss: CeCriterion
+  metric_meta:
+  - SeqEvalList
+  n_class: 10
+  split_names:
+  - train
+  - test
+  task_type: SequenceLabeling
+pos:
+  data_format: Sequence
+  enable_san: false
+  labels:
+  - ADJ
+  - ADP
+  - ADV
+  - AUX
+  - CCONJ
+  - DET
+  - INTJ
+  - NOUN
+  - NUM
+  - PART
+  - PRON
+  - PROPN
+  - PUNCT
+  - SCONJ
+  - SYM
+  - VERB
+  - X
+  - CLS
+  - SEP
+  loss: CeCriterion
+  metric_meta:
+  - SeqEvalList
+  n_class: 19
+  split_names:
+  - train
+  - test
+  task_type: SequenceLabeling

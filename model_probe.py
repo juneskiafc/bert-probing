@@ -5,21 +5,25 @@ from experiments.exp_def import (
     Experiment,
     TaskDefs,
 )
-import torch
-from copy import deepcopy
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--finetuned_task', type=str, default='')
 parser.add_argument('--finetuned_setting', type=str, default='')
+parser.add_argument('--model_ckpt', type=str, default='')
+parser.add_argument('--FA', action='store_true')
+parser.add_argument('--exp_name', type=str, default='')
 parser.add_argument('--task', type=str, default='')
 parser.add_argument('--devices', nargs='+')
 args = parser.parse_args()
 
 if args.finetuned_task != '':
-    model_ckpt_dir = Path('checkpoint').joinpath(f'{args.finetuned_task.upper()}_{args.finetuned_setting}')
+    if args.FA:
+        model_ckpt_dir = Path('checkpoint').joinpath(f'{args.finetuned_task.upper()}')
+    else:
+        model_ckpt_dir = Path('checkpoint').joinpath(f'{args.finetuned_task.upper()}_{args.finetuned_setting}')
     model_ckpt = list(model_ckpt_dir.rglob("model_5*.pt"))[0]
 else:
-    model_ckpt = ''
+    model_ckpt = args.model_ckpt
 
 devices = [int(d) for d in args.devices]
 
@@ -33,7 +37,10 @@ for downstream_task in tasks:
     if args.finetuned_task != '':
         exp_name = f'model_probing/{args.finetuned_task}/{args.finetuned_setting}/{downstream_task.name}'
     else:
-        exp_name = f'model_probing/BERT/{downstream_task.name}'
+        if args.exp_name == '':
+            exp_name = f'model_probing/BERT/{downstream_task.name}'
+        else:
+            exp_name = f'model_probing/{args.exp_name}'
     
     dataset = f'{downstream_task.name}/cross'
     task_def_path = Path('experiments').joinpath(downstream_task.name, 'task_def.yaml')
@@ -52,7 +59,8 @@ for downstream_task in tasks:
     if downstream_task in [Experiment.NER, Experiment.POS]:
         cmd += ' --model_probe_sequence'
 
-    process = subprocess.run(cmd.split(' '))
+    raise ValueError(cmd)
+    process = subprocess.call(cmd.split(' '))
 
     # # trim checkpoint
     # state_dict_path = list(Path('checkpoint').joinpath(exp_name).rglob("*.pt"))[0]
