@@ -6,6 +6,18 @@ from experiments.exp_def import (
     Experiment
 )
 from argparse import ArgumentParser
+from math import ceil
+
+def calculate_num_steps(task, n_epochs=2, batch_size=8):
+    # get full multilingual dataset
+    multi_dataset = Path(f'experiments/{task}/multi/{task.lower()}_train.tsv')
+
+    # get length
+    with open(multi_dataset, 'r') as f:
+        n_lines = len(f.readlines())
+
+    steps_per_epoch = ceil(n_lines / batch_size)
+    print(steps_per_epoch * n_epochs)
 
 def evaluate_trained_models(task):
     models = [Experiment[task.upper()]]
@@ -76,11 +88,12 @@ def make_graph(task):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--task', default='', type=str)
+    parser.add_argument('--task', default='', type=str, required=True)
     args = parser.parse_args()
 
-    evaluate_trained_models(args.task)
-    make_graph(args.task)
+    calculate_num_steps(args.task)
+    # evaluate_trained_models(args.task)
+    # make_graph(args.task)
 
 
         

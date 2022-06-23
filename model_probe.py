@@ -11,6 +11,7 @@ parser.add_argument('--finetuned_task', type=str, default='')
 parser.add_argument('--finetuned_setting', type=str, default='')
 parser.add_argument('--model_ckpt', type=str, default='')
 parser.add_argument('--FA', action='store_true')
+parser.add_argument('--exp_name', type=str, default='')
 parser.add_argument('--task', type=str, default='')
 parser.add_argument('--devices', nargs='+')
 args = parser.parse_args()
@@ -36,7 +37,10 @@ for downstream_task in tasks:
     if args.finetuned_task != '':
         exp_name = f'model_probing/{args.finetuned_task}/{args.finetuned_setting}/{downstream_task.name}'
     else:
-        exp_name = f'model_probing/BERT/{downstream_task.name}'
+        if args.exp_name == '':
+            exp_name = f'model_probing/BERT/{downstream_task.name}'
+        else:
+            exp_name = f'model_probing/{args.exp_name}'
     
     dataset = f'{downstream_task.name}/cross'
     task_def_path = Path('experiments').joinpath(downstream_task.name, 'task_def.yaml')

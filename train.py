@@ -134,6 +134,7 @@ def train_config(parser):
     ############
     parser.add_argument('--epochs', type=int, default=6)
     parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--num_steps', type=int, default=-1)
 
     # loading
     parser.add_argument("--model_ckpt", default='', type=str)
@@ -308,10 +309,15 @@ def main():
     # div number of grad accumulation. 
     n_batch_per_epoch = len(multi_task_train_dataloader) // args.grad_accumulation_step
     num_all_batches = args.epochs * n_batch_per_epoch
+
+    if args.num_steps > 0:
+        num_all_steps = args.num_steps
+    else:
+        num_all_steps = args.epochs * len(multi_task_train_dataloader)
+        
     print_message(logger, '############# Gradient Accumulation Info #############')
-    print_message(logger, 'number of step: {}'.format(args.epochs * len(multi_task_train_dataloader)))
-    print_message(logger, 'number of grad grad_accumulation step: {}'.format(args.grad_accumulation_step))
-    print_message(logger, 'adjusted number of step: {}'.format(num_all_batches))
+    print_message(logger, f'number of step: {num_all_steps}')
+    print_message(logger, f'number of grad grad_accumulation step: {args.grad_accumulation_step}')
     print_message(logger, '#######################################\n')
 
     if opt['encoder_type'] not in EncoderModelType._value2member_map_:
@@ -540,8 +546,12 @@ def main():
         wandb.init(project='soroush', name=exp_name)
 
     # main training loop
-    for epoch in range(init_epoch_idx, init_epoch_idx+args.epochs):        
-        print_message(logger, f'At epoch {epoch}', level=1)
+    total_training_steps = 0
+    end_training = False
+    epoch = init_epoch_idx
+    
+    while total_training_steps < num_all_steps:        
+        print_message(logger, f'At epoch {init_epoch_idx}, step {init_global_step}', level=1)
 
         for (batch_meta, batch_data) in multi_task_train_dataloader:
             batch_meta, batch_data = Collater.patch_data(
@@ -551,9 +561,14 @@ def main():
 
             task_id = batch_meta['task_id']
             model.update(batch_meta, batch_data)
+            total_training_steps += 1
+
+            if total_training_steps == num_all_steps:
+                print_message(logger, f'reached total training steps {total_training_steps}. Terminating training')
+                end_training = True
 
             if (model.updates - 1) % (args.log_per_updates) == 0:
-                print_message(logger, f"[e{epoch}] [{model.updates % n_batch_per_epoch}/{n_batch_per_epoch}] train loss: {model.train_loss.avg:.5f}")
+                print_message(logger, f"[e{epoch}] [{model.updates % n_batch_per_epoch}/{n_batch_per_epoch}] [step {total_training_steps}] train loss: {model.train_loss.avg:.5f}")
 
                 if args.wandb:
                     wandb.log({
@@ -561,9 +576,16 @@ def main():
                         'global_step': init_global_step + model.updates,
                         'epoch': epoch
                     })
+            
+            if end_training:
+                break
         
+        if end_training:
+            break
+
         model_file = save_checkpoint(model, epoch, output_dir)
         print_message(logger, f'Saving mt-dnn model to {model_file}')
+        epoch += 1
 
 if __name__ == '__main__':
     main()

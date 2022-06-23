@@ -117,6 +117,8 @@ def evaluate_model_probe(
 
     print(f'loading from {state_dict_for_head}')
     state_dict_for_head = torch.load(state_dict_for_head, map_location=f'cuda:{device_id}')
+    if 'state' in state_dict_for_head.keys():
+        state_dict_for_head = state_dict_for_head['state']
 
     # then attach the probing layer
     model.attach_model_probe(task_def.n_class, sequence=sequence)
@@ -131,6 +133,8 @@ def evaluate_model_probe(
 
     layer.model_probe_head.weight = nn.Parameter(weight)
     layer.model_probe_head.bias = nn.Parameter(bias)
+
+    layer = model.network.get_pooler_layer()
 
     # compute acc and save
     acc = get_metric(
@@ -222,10 +226,13 @@ def get_model_probe_scores(
     batch_size: int = 8,
     max_seq_len: int = 512):
     
-    if finetuned_setting is LingualSetting.BASE:
-        model_name = 'BERT'
+    if model_ckpt != '':
+        model_name = Path(model_ckpt).parent.name
     else:
-        model_name = f'{finetuned_task.name}_{finetuned_setting.name.lower()}'
+        if finetuned_setting is LingualSetting.BASE:
+            model_name = 'BERT'
+        else:
+            model_name = f'{finetuned_task.name}_{finetuned_setting.name.lower()}'
 
     results_out_file = Path(f'model_probe_outputs').joinpath(
         model_name,
@@ -260,7 +267,7 @@ def get_model_probe_scores(
     results.columns = [task.name for task in tasks]
     results.to_csv(results_out_file)
 
-def create_perlang_results(finetuned_task, finetuned_setting, downstream_task, langs):
+def create_perlang_results(finetuned_task, finetuned_setting, downstream_task, langs, model_name=''):
     def get_data(root):
         data = pd.DataFrame(np.zeros((1, len(langs))))
         data.columns = langs
@@ -272,12 +279,16 @@ def create_perlang_results(finetuned_task, finetuned_setting, downstream_task, l
         
         return data
     
-    if finetuned_task is Experiment.BERT:
-        root = Path(f'model_probe_outputs/{finetuned_task}')
+    if model_name != '':
+        root = Path(f'model_probe_outputs/{model_name}')
+        output_path = root.parent.joinpath(f'results/{model_name}-{downstream_task}.csv')
     else:
-        root = Path(f'model_probe_outputs/{finetuned_task}_{finetuned_setting}')
-    
-    output_path = root.parent.joinpath(f'results/{finetuned_task}_{finetuned_setting.lower()}-{downstream_task}.csv')
+        if finetuned_task is Experiment.BERT:
+            root = Path(f'model_probe_outputs/{finetuned_task}')
+        else:
+            root = Path(f'model_probe_outputs/{finetuned_task}_{finetuned_setting}')
+        output_path = root.parent.joinpath(f'results/{finetuned_task}_{finetuned_setting.lower()}-{downstream_task}.csv')
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if output_path.is_file():
@@ -399,7 +410,8 @@ def create_perlang_heatmap(args):
                 args.finetuned_task,
                 args.finetuned_setting,
                 task,
-                langs
+                langs,
+                model_name=args.model_name
             )
             data[i, :] = data_for_task.values
 
@@ -431,6 +443,7 @@ if __name__ == '__main__':
     parser.add_argument('--probe_task', type=str, default='')
 
     parser.add_argument('--model_ckpt', type=str, default='', help='checkpoint of model probe head')
+    parser.add_argument('--model_name', type=str, default='')
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--max_seq_len', type=int, default=512)
     args = parser.parse_args()
