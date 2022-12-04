@@ -111,12 +111,25 @@ def subsample_and_combine(foreign_dataset, ps, seeds):
 def make_multilingual():
     out_dir = Path(f'experiments/NER/multi')
     if not out_dir.is_dir():
-        langs = {'train': ['en', 'fr', 'de', 'es'], 'test': ['en', 'fr', 'de', 'es']}
+        langs = {
+            'train': ['en', 'fr', 'de', 'es', 'el', 'bg', 'ru', 'tr', 'sa', 'vi', 'th', 'zh', 'hi', 'sw', 'ur'],
+            'test': ['en', 'fr', 'de', 'es', 'el', 'bg', 'ru', 'tr', 'sa', 'vi', 'th', 'zh', 'hi', 'sw', 'ur']
+            }
         _prepare_data(out_dir, langs)
     copy_master_task_def(out_dir)
 
 def make_per_language():
-    for lang in ['en', 'fr', 'de', 'es']:
+    # el is greek
+    # bg is bulgarian
+    # tr is turkish
+    # sa is arabic
+    # vi is vietnamese
+    # th is thai
+    # zh is chinese
+    # hi is hindi
+    # sw is swahili
+    # ur is urdu
+    for lang in ['en', 'fr', 'de', 'es', 'el', 'bg', 'ru', 'tr', 'sa', 'vi', 'th', 'zh', 'hi', 'sw', 'ur']:
         out_dir = Path(f'experiments/NER/{lang}')
         if not out_dir.is_dir():
             langs = {'train': [lang], 'test': [lang]}
@@ -158,11 +171,11 @@ def prepro_wrapper_for_foreign():
 
 if __name__ == '__main__':
     # make_per_language()
-    # make_multilingual()
+    make_multilingual()
     # make_crosslingual()
     # make_foreign()
 
-    make_fractional_training()
+    # make_fractional_training()
     # prepro_wrapper_for_foreign()
 
 

@@ -141,6 +141,8 @@ def compute_correlation(method='pearson'):
         fig.savefig(root.joinpath(data[0]), bbox_inches='tight')
 
 def prediction_gradient(
+    model_ckpt,
+    model_type,
     finetuned_task,
     finetuned_setting,
     downstream_task,
@@ -149,17 +151,22 @@ def prediction_gradient(
     save_dir,
     batch_size=8
 ):  
-    task_def_path_for_data = Path('experiments').joinpath(downstream_task, 'task_def.yaml')
+    # set separate task def paths for the model and the dataset, since you could be probing a task-finetuned moddel on a different task 
+    task_def_path_for_data = Path('experiments').joinpath(downstream_task, downstream_setting, 'task_def.yaml')
+    print(f'Loading task_def from {task_def_path_for_data} to init dataset')
     task_def_for_data = TaskDefs(task_def_path_for_data).get_task_def(downstream_task.lower())
-    task_def_path_for_model = Path('experiments').joinpath(finetuned_task, 'task_def.yaml')
+    
+    task_def_path_for_model = Path('experiments').joinpath(finetuned_task, finetuned_setting, 'task_def.yaml')
+    print(f'Loading task_def from {task_def_path_for_data} to init model')
 
+    # build dataset
     data_path = Path('experiments').joinpath(
         downstream_task,
         downstream_setting,
-        'bert-base-multilingual-cased',
+        model_type,
         f'{downstream_task.lower()}_train.json'
     )
-    print(f'building data from {data_path}')
+    print(f'Building data from {data_path}')
     dataloader = build_dataset(
         data_path,
         EncoderModelType.BERT,
@@ -168,8 +175,11 @@ def prediction_gradient(
         task_def=task_def_for_data,
         is_train=True)
     
-    model_ckpt = list(Path('checkpoint').joinpath(f'{finetuned_task}_{finetuned_setting}').rglob("model_5*.pt"))[0]
+    # build model
+    if model_ckpt == "":
+        model_ckpt = list(Path('checkpoint').joinpath(f'{finetuned_task}_{finetuned_setting}').rglob("model_5*.pt"))[0]
     print(f'loading model from {model_ckpt}')
+
     config, state_dict, _ = base_construct_model(
         model_ckpt,
         Experiment[finetuned_task.upper()],
@@ -249,16 +259,20 @@ if __name__ == '__main__':
     parser.add_argument('--downstream_setting', default='cross')
     parser.add_argument('--save_dir', default='gradient_probing_outputs')
     parser.add_argument('--device_id', default=0)
+    parser.add_argument('--model_type', default='bert-base-multilingual-cased')
+    parser.add_argument('--model_ckpt', default='')
     args = parser.parse_args()
     
-    # prediction_gradient(
-    #     args.finetuned_task,
-    #     args.finetuned_setting,
-    #     args.downstream_task,
-    #     args.downstream_setting,
-    #     args.device_id,
-    #     Path(args.save_dir)
-    # )
+    prediction_gradient(
+        args.model_ckpt,
+        args.model_type,
+        args.finetuned_task,
+        args.finetuned_setting,
+        args.downstream_task,
+        args.downstream_setting,
+        args.device_id,
+        Path(args.save_dir)
+    )
 
-    for method in ['spearman']:
-        compute_correlation(method)
+    # for method in ['spearman']:
+    #     compute_correlation(method)

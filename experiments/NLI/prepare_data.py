@@ -46,7 +46,7 @@ def raw_tsv_to_mtdnn_format(in_files, out_file, languages=None, excl_langs=None)
             with jsonlines.open(in_file) as fr:
                 for row in fr:
                     # check language specific request
-                    c1 = (languages is None) or (languages is not None and row['language'] in languages)
+                    c1 = (languages is None) or (languages is not None and ('language' not in row or row['language'] in languages))
                     # then check excl_lang request
                     c2 = (excl_langs is None) or (excl_langs is not None and row['language'] not in excl_langs)
                     
@@ -204,22 +204,22 @@ def make_crosslingual():
 
 def make_foreign():
     langs = [
-            'ar',
-            'bg',
+            # 'ar',
+            # 'bg',
             'de',
-            'el',
+            # 'el',
             'es',
             'fr',
-            'hi',
-            'ru',
-            'sw',
-            'th',
-            'tr',
-            'ur',
-            'vi',
-            'zh',
+            # 'hi',
+            # 'ru',
+            # 'sw',
+            # 'th',
+            # 'tr',
+            # 'ur',
+            # 'vi',
+            # 'zh',
         ]
-    raw_tsv_to_mtdnn_format([MNLI_TRAIN, XNLI_DEV], 'experiments/NLI/foreign/nli_train.tsv', langs)
+    raw_tsv_to_mtdnn_format([XNLI_DEV], 'experiments/NLI/foreign/nli_train.tsv', langs)
     raw_tsv_to_mtdnn_format([XNLI_TEST], 'experiments/NLI/foreign/nli_test.tsv', langs)
 
 def make_fractional_training():
@@ -239,9 +239,12 @@ def prepro_wrapper_for_foreign():
             subprocess.run(split_cmd)
 
 if __name__ == '__main__':
-    make_per_language()
-    make_multilingual()
-    make_crosslingual()
-    make_foreign()
+    # make_per_language()
+    # make_multilingual()
+    # make_crosslingual()
+    # make_foreign()
+    # make_fractional_training()
+    datasets = ['experiments/NLI/cross/nli_train.tsv', 'experiments/NLI/foreign/nli_train.tsv']
+    combine_datasets(datasets, 'experiments/NLI/multi_4lang/nli_train.tsv')
 
 

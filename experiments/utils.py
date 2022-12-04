@@ -5,9 +5,9 @@ import json
 from collections import OrderedDict
 import yaml
 
-def multi_dataset_prepro_wrapper(datasets):
+def multi_dataset_prepro_wrapper(datasets, task_def):
     for dataset in datasets:
-        command = f'python prepro_std.py --dataset {dataset}'
+        command = f'python prepro_std.py --dataset {dataset} --task_def {task_def}'
         print(command)
         command = command.split(' ')
         subprocess.run(command)
@@ -64,6 +64,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--datasets', nargs='+')
     parser.add_argument('--multi_dataset_prepro', action='store_true')
+    parser.add_argument('--task_def', type=str)
     parser.add_argument('--combine_jsons', action='store_true')
     parser.add_argument('--data_distrib', action='store_true')
     parser.add_argument('--langs', nargs='+')
@@ -71,7 +72,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.multi_dataset_prepro:
-        multi_dataset_prepro_wrapper(args.datasets)
+        multi_dataset_prepro_wrapper(args.datasets, args.task_def)
     elif args.combine_jsons:
         combine_mtdnn_jsons(args.datasets, args.out_dir)
     elif args.data_distrib:

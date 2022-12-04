@@ -25,7 +25,6 @@ from train_utils import (
     print_message,
     save_checkpoint
 )
-from gradient_probing import prediction_gradient
 import wandb
 
 def model_config(parser):
@@ -113,7 +112,7 @@ def model_config(parser):
 def data_config(parser):
     # SET THESE
     ############
-    parser.add_argument('--exp_name', default='', help='experiment name')
+    parser.add_argument('--exp_name', default='', help='experiment name. Name of folder that will checkpoints will save to')
     parser.add_argument('--dataset_name', default='', help='dataset name')
     parser.add_argument('--wandb', action='store_true')
     ############
@@ -532,16 +531,6 @@ def main():
     
     # dump config
     dump_opt(opt, output_dir)
-
-    if args.gradient_probe:
-        save_path = Path('gradient_probe_outputs').joinpath(exp_name)
-        prediction_gradient(
-            args,
-            model, 
-            multi_task_train_dataloader,
-            save_path
-        )
-        return
     
     if args.wandb:
         wandb.init(project='soroush', name=exp_name)
@@ -552,7 +541,7 @@ def main():
     epoch = init_epoch_idx
     
     while total_training_steps < num_all_steps:        
-        print_message(logger, f'At epoch {epoch}, step {total_training_steps}', level=1)
+        print_message(logger, f'At epoch {init_epoch_idx}, step {init_global_step}', level=1)
 
         for (batch_meta, batch_data) in multi_task_train_dataloader:
             batch_meta, batch_data = Collater.patch_data(
@@ -565,7 +554,9 @@ def main():
             total_training_steps += 1
 
             if total_training_steps == num_all_steps:
-                print_message(logger, f'reached total training steps {total_training_steps}. Terminating training')
+                print_message(logger, f'reached total training steps {total_training_steps} ({model.updates}). Terminating training')
+                model_file = save_checkpoint(model, epoch, output_dir)
+                print_message(logger, f'Saving mt-dnn model to {model_file}. tts = {total_training_steps}; mu = {model.updates}')
                 end_training = True
 
             if (model.updates - 1) % (args.log_per_updates) == 0:
@@ -583,9 +574,9 @@ def main():
         
         if end_training:
             break
-
+        
         model_file = save_checkpoint(model, epoch, output_dir)
-        print_message(logger, f'Saving mt-dnn model to {model_file}')
+        print_message(logger, f'Saving mt-dnn model to {model_file}. tts = {total_training_steps}; mu = {model.updates}')
         epoch += 1
 
 if __name__ == '__main__':

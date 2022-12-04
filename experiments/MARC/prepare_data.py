@@ -114,7 +114,7 @@ def make_crosslingual():
 
 def make_foreign():
     langs = ['es', 'fr', 'de']
-    out_dir = Path(f'experiments/MARC/multi')
+    out_dir = Path(f'experiments/MARC/foreign')
     _prepare_data(langs, langs, out_dir)
 
 def make_fractional():
@@ -124,13 +124,8 @@ def make_fractional():
     subsample_and_combine(foreign_dataset, multilingual_fractions, seeds)
 
 if __name__ == '__main__':
-    make_per_language()
+    # make_per_language()
     # make_multilingual()
     # make_crosslingual()
-    # make_foreign()
-    # make_fractional()
-
-    # langs = ['es', 'fr', 'de']
-    # out_dir = Path(f'experiments/MARC/foreign')
-    # _prepare_data(None, langs, out_dir)
-    # cleave()
+    make_foreign()
+    make_fractional()

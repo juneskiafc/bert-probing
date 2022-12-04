@@ -23,10 +23,10 @@ def evaluate_trained_models(task):
     models = [Experiment[task.upper()]]
 
     for seed in range(3):
-        for frac in [0.2, 0.4, 0.6, 0.8]:
+        for frac in [0, 0.2, 0.4, 0.6, 0.8, 1]:
             for model in models:
-                ckpt_dir = Path(f'checkpoint/{model.name}_{frac}_{seed}')
-                if not Path(f'evaluation_results/{model.name}-{seed}-{frac}.csv').is_file() and ckpt_dir.is_dir():
+                ckpt_dir = Path(f'checkpoint/{model.name}-{seed}-{frac}')
+                if not Path(f'evaluation_results/fractional_training/{model.name}/{model.name}-{seed}-{frac}.csv').is_file() and ckpt_dir.is_dir():
                     model_ckpt = list(ckpt_dir.rglob("*.pt"))[0]
                     command = 'python evaluate.py --device_id 0 '
                     command += f'--model_ckpt {model_ckpt} '
@@ -36,7 +36,7 @@ def evaluate_trained_models(task):
 def make_graph(task):
     plt.rcParams.update({'font.size': 14})
 
-    root = Path('evaluation_results').joinpath('fractional_training', task)
+    root = Path(f'evaluation_results').joinpath('fractional_training', task)
     us_tasks = [Experiment[task.upper()]]
 
     for us_task in us_tasks:
@@ -68,18 +68,18 @@ def make_graph(task):
                 else:
                     raise ValueError(f'please evaluate {result_path}')
                 
-                y.append(result.iloc[0, 0])
+                y.append(result.iloc[-1, 0])
             
             y.append(multi_result)
 
             ax.plot(x, y, c=colors[seed], label=f'seed: {seeds[seed]}')
 
         if us_task.name != 'NLI':
-            ax.set_ylabel('Macro average F1')
+            ax.set_ylabel('macro average F1')
         else:
-            ax.set_ylabel('Accuracy')
+            ax.set_ylabel('accuracy')
 
-        ax.set_xlabel('Fraction of target language training data')
+        ax.set_xlabel('fraction of target language training data')
         ax.legend()
 
         plt.savefig(root.joinpath(f'{us_task.name}_frac_training.pdf'), bbox_inches='tight')

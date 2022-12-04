@@ -9,5 +9,5 @@ pawsx:
   n_class: 2
   loss: CeCriterion
   split_names:
-  - test
+  - train
   task_type: Classification
