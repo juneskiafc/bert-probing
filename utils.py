@@ -27,7 +27,8 @@ def create_heatmap(
     figsize: Tuple[int, int] = (14, 14),
     fontsize: int = 14,
     cmap: str = 'RdYlGn',
-    out_file: str= ''
+    out_file: str= '',
+    annot: bool = False
     ):
     """
     General heatmap from data.
@@ -44,7 +45,7 @@ def create_heatmap(
     heatmap = sns.heatmap(
         data_df.to_numpy(),
         cbar=False,
-        annot=True,
+        annot=annot,
         annot_kws=annot_kws,
         fmt=".2f",
         cmap=cmap)

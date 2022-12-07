@@ -45,9 +45,6 @@ def model_config(parser):
     parser.add_argument('--model_probe_n_classes', type=int)
     parser.add_argument('--model_probe_sequence', action='store_true')
 
-    # gradient probing
-    parser.add_argument('--gradient_probe', action='store_true')
-
     # finetuning after joint modeling
     parser.add_argument('--jm_finetune', action='store_true')
     parser.add_argument('--jm_finetune_new', action='store_true') # if task does not exist in 1st stage finetuning

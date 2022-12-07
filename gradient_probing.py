@@ -1,4 +1,3 @@
-""" Fine-tuning the library models for named entity recognition on CoNLL-2003. """
 from argparse import ArgumentParser
 import torch
 import einops
@@ -12,6 +11,7 @@ import numpy as np
 from scipy.stats import spearmanr, pearsonr
 from itertools import combinations
 from experiments.exp_def import Experiment, LingualSetting, TaskDefs
+import random
 
 from mt_dnn.model import MTDNNModel
 from utils import create_heatmap, base_construct_model, build_dataset
@@ -151,6 +151,11 @@ def prediction_gradient(
     save_dir,
     batch_size=8
 ):  
+    # seed everything
+    np.random.seed(10)
+    torch.manual_seed(10)
+    random.seed(10)
+
     # set separate task def paths for the model and the dataset, since you could be probing a task-finetuned moddel on a different task 
     task_def_path_for_data = Path('experiments').joinpath(downstream_task, downstream_setting, 'task_def.yaml')
     print(f'Loading task_def from {task_def_path_for_data} to init dataset')
@@ -164,7 +169,7 @@ def prediction_gradient(
         downstream_task,
         downstream_setting,
         model_type,
-        f'{downstream_task.lower()}_train.json'
+        f'{downstream_task.lower()}_test.json'
     )
     print(f'Building data from {data_path}')
     dataloader = build_dataset(
@@ -196,8 +201,9 @@ def prediction_gradient(
 
     save_path = save_dir.joinpath(
         finetuned_task,
+        finetuned_setting,
         downstream_task,
-        finetuned_setting
+        downstream_setting
     )
 
     if not save_path.joinpath('grad.pt').is_file():
